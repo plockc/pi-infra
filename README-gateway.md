@@ -102,7 +102,7 @@ network:
 ```
 
 Interface for external network as DHCP
-```create-file:eth1#files
+```create-file:eth1.yml#files
 network:
     version: 2
     renderer: networkd
@@ -114,7 +114,7 @@ network:
 
 Example for wireless network for external interface
 
-```create-file:wlan0#files
+```create-file:wlan0.yml#files
 network:
     version: 2
     renderer: networkd
@@ -160,14 +160,6 @@ Turn off systemd DNS stub
 ```create-file:resolved.conf#files
 echo DNSStubListener=no
 ```
-
-Configure resolv
-
-```create-file:resolv.dnsmasq.conf#files
-nameserver 1.1.1.1
-options edns0
-```
-
 
 Copy the configuration files to mounted ubuntu filesystem
 ```bash

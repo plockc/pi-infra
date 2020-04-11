@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# keep the kernel messages from appearing on screen
+echo 0 > /proc/sys/kernel/printk
+
+# bring link up so DHCP client can send packets
+ip link set dev eth0 up
+
+echo Starting udhcpc
+if udhcpc; then
+    [ -x /root/install.sh ] && /root/install.sh && reboot -f
+fi
+/bin/ash
