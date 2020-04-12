@@ -30,7 +30,7 @@ Download raspberry pi boot firmware and kernel
 
 ```bash
 FIRMWARE_ZIP=$PWD/firmware_master.zip
-wget -O "$FIRMWARE_ZIP" --no-clobber https://github.com/raspberrypi/firmware/archive/master.zip
+wget -O "$FIRMWARE_ZIP" --no-clobber https://github.com/raspberrypi/firmware/archive/master.tar.gz
 ```
 
 Pull ubuntu preinstalled server, which is a compacted complete disk image
