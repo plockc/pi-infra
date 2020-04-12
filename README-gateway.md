@@ -11,7 +11,7 @@ Install rundoc, extract the script embedded in this README, the run it
 ```usage
 pip3 install rundoc
 rundoc run README.md
-sudo bash gateway.sh
+gateway.sh
 ```
 
 
@@ -29,8 +29,8 @@ set -euo pipefail
 Download raspberry pi boot firmware and kernel
 
 ```bash
-FIRMWARE_ZIP=$PWD/firmware_master.zip
-wget -O "$FIRMWARE_ZIP" --no-clobber https://github.com/raspberrypi/firmware/archive/master.tar.gz
+FIRMWARE_ARCHIVE=firmware_master.tgz
+[[ ! -f "$FIRMWARE_ARCHIVE" ]] && wget -O "$FIRMWARE_ARCHIVE" https://github.com/raspberrypi/firmware/archive/master.tar.gz
 ```
 
 Pull ubuntu preinstalled server, which is a compacted complete disk image
@@ -43,8 +43,9 @@ wget --no-clobber http://cdimage.ubuntu.com/releases/18.04.4/release/ubuntu-18.0
 version=1.31.1
 BUSYBOX=busybox-$version.tar.bz2
 wget --no-clobber "https://www.busybox.net/downloads/$BUSYBOX"
-tar --bzip2 --strip-components 1 -xf "$BUSYBOX" | tar zcf busybox.tgz
+tar --bzip2 -xf "$BUSYBOX"
 BUSYBOX=busybox.tgz
+tar --strip-components 1 -cf "$BUSYBOX" busybox-$version
 ```
 
 ## Install
@@ -52,20 +53,22 @@ BUSYBOX=busybox.tgz
 Find SD Card (check is for USB devices: not generic, sorry)
 
 ```bash
-while [[ "$DEVICE" == "" ]]; do
-    DEVICE=$(cat .device)
+if [[ "${DEVICE:-}" == "" ]]; then
     DEVICES="$(ls /sys/bus/usb/devices/*/*/host*/target*/*/block)"
-    read -p "Devices found $DEVICES, choose one as DEVICE" DEVICE
-    echo "$DEVICE" > .device
+    echo -e "\nFound devices: $DEVICES\n"
+    echo -e "usage: env DEVICE=<device name e.g. sdb> $0\n"
+    exit 1
 fi
 ```
 
 make sure that filesystems are not mounted
 
 ```bash
-foundFS=$(lsblk --fs /dev/$DEVICE)
-if [[ "$foundFS" != "" ]]; then
-  echo -e "Found filesystems, please clear sd card:\n$foundFS"
+foundParts=$(lsblk -J "/dev/$DEVICE" | jq ".blockdevices[].children|length")
+if [[ "$foundParts" != "0" ]]; then
+  echo -e "Found filesystems, please umount filesystems and clear SD card partition table:\n$(lsblk --fs /dev/"$DEVICE")"
+  echo -e "\nThis command will wipe the partition table:"
+  echo -e "sudo dd if=/dev/zero of=\"/dev/$DEVICE\" bs=1M count=5\n" 
   exit 1
 fi
 ```
@@ -137,7 +140,7 @@ Copy the network files (adjust as needed prior to running gateway.sh)
 
 ```bash
 pushd "$PIROOT"/etc/netplan
-cp ~1/gateway/eth0.yml ~1/gateway/eth1.yml .
+sudo cp ~1/gateway/eth0.yml ~1/gateway/eth1.yml .
 popd
 ```
 
@@ -149,7 +152,7 @@ network: {config: disabled}"
 Copy the configuration files
 ```bash
 pushd "$PIROOT"/etc/cloud/cloud.cfg.d
-cp ~1/gateway/cloud-init/disable-network-config.cfg 99-disable-network-config.cfg
+sudo cp ~1/gateway/cloud-init/disable-network-config.cfg 99-disable-network-config.cfg
 popd
 ```
 
@@ -170,9 +173,9 @@ echo DNSStubListener=no
 Copy the configuration files to mounted ubuntu filesystem
 ```bash
 pushd $PIROOT/etc
-cp ~1/gateway/resolv.dnsmasq.conf resolv.dnsmasq.conf
-cp ~1/gateway/resolved.conf systemd/resolved.conf
-cp ~1/gateway/cloud-init/99-hostname.cloud-init.cfg cloud/cloud.cfg.d/99-hostname.cfg
+sudo cp ~1/gateway/resolv.dnsmasq.conf resolv.dnsmasq.conf
+sudo cp ~1/gateway/resolved.conf systemd/resolved.conf
+sudo cp ~1/gateway/cloud-init/99-hostname.cloud-init.cfg cloud/cloud.cfg.d/99-hostname.cfg
 popd
 ```
 
@@ -211,7 +214,7 @@ packages:
 Copy the configuration files
 ```bash
 pushd "$PIROOT"/etc/cloud/cloud.cfg.d
-cp ~1/gateway/cloud-init/packages.cfg 99-packages.cfg
+sudo cp ~1/gateway/cloud-init/packages.cfg 99-packages.cfg
 popd
 ```
 
@@ -239,7 +242,7 @@ Enable forwarding and provide iptables config on startup
 ```bash
 pushd "$PIROOT"/etc
 sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' sysctl.conf
-cp ~1/gateway/rules.v4 etc/iptables/
+sudo cp ~1/gateway/rules.v4 etc/iptables/
 ```
 
 
@@ -283,9 +286,9 @@ search k8s.local
 Copy the configuration files
 ```bash
 pushd "$PIROOT"/etc
-cp ~1/gatway/dnsmasq/pocket.conf dnsmasq.d/pocket
-cp ~1/hosts hosts.dnsmasq
-cp ~1/resolv.conf etc/resolv.dnsmasq.conf
+sudo cp ~1/gatway/dnsmasq/pocket.conf dnsmasq.d/pocket
+sudo cp ~1/hosts hosts.dnsmasq
+sudo cp ~1/resolv.conf etc/resolv.dnsmasq.conf
 popd
 ```
 
@@ -297,7 +300,7 @@ also in there is a kernel that can work for netboot as it has statically compile
 ```
 pushd "$PIROOT"
 mkdir tftpboot
-unzip ~1/"$FIRMWARE_ZIP" firmware-master/boot/**" -d /tftpboot
+tar zxf ~1/"$FIRMWARE_ARCHIVE" --strip-components=1 boot/**" -d /tftpboot
 popd
 ```
 
@@ -333,7 +336,7 @@ Copy the busybox script and the busybox archive to the sd card so it's available
 
 ```bash
 pushd "$PIROOT"/root
-cp ~1/gateway/first-boot/"$BUSYBOX" ~1/gateway/first-boot/busybox-compile-and-install.sh .
+sudo cp ~1/gateway/first-boot/"$BUSYBOX" ~1/gateway/first-boot/busybox-compile-and-install.sh .
 popd
 ```
 
@@ -404,7 +407,7 @@ fi
 
 Copy the init scripts to sd card so can be used during first boot
 ```bash
-cp ~1/installer/init{,2} "$PIROOT"/root/
+sudo cp ~1/installer/init{,2} "$PIROOT"/root/
 ```
 
 #### create initramfs image
@@ -417,7 +420,7 @@ set -euo pipefail
 
 cd /root/bbroot
 mkdir -p {proc,sys,dev,etc,usr/lib,bin,sbin,lib/arm-linux-gnueabihf}
-cp /lib/arm-linux-gnueabihf/libnss* lib/arm-linux-gnueabihf/
+sudo cp /lib/arm-linux-gnueabihf/libnss* lib/arm-linux-gnueabihf/
 ```
 
 overwrite the busybox init script in the initramfs directory and copy init2 and the dhcp configuration script
@@ -443,12 +446,12 @@ This cloud init fragment will run the first time boot scripts to create the init
 
 Copy the script to create the initramfs to the sd card for reference by first boot
 ```bash
-cp installer/initramfs.sh "$PIROOT"/root/
+sudo cp installer/initramfs.sh "$PIROOT"/root/
 ```
 
 Copy the cloud init configuration to the sd card
 ```bash
-cp installer/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg
+sudo cp installer/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg
 ```
 
 ## Install script

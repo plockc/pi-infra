@@ -2,27 +2,30 @@
 
 set -euo pipefail
 
-FIRMWARE_ZIP=$PWD/firmware_master.zip
-wget -O "$FIRMWARE_ZIP" --no-clobber https://github.com/raspberrypi/firmware/archive/master.zip
+FIRMWARE_ARCHIVE=firmware_master.tgz
+[[ ! -f "$FIRMWARE_ARCHIVE" ]] && wget -O "$FIRMWARE_ARCHIVE" https://github.com/raspberrypi/firmware/archive/master.tar.gz
 
 wget --no-clobber http://cdimage.ubuntu.com/releases/18.04.4/release/ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz
 
 version=1.31.1
 BUSYBOX=busybox-$version.tar.bz2
 wget --no-clobber "https://www.busybox.net/downloads/$BUSYBOX"
-tar --bzip2 --strip-components 1 -xf "$BUSYBOX" | tar zcf busybox.tgz
+tar --bzip2 -xf "$BUSYBOX"
 BUSYBOX=busybox.tgz
+tar --strip-components 1 -cf "$BUSYBOX" busybox-$version
 
-while [[ "$DEVICE" == "" ]]; do
-    DEVICE=$(cat .device)
+if [[ "${DEVICE:-}" == "" ]]; then
     DEVICES="$(ls /sys/bus/usb/devices/*/*/host*/target*/*/block)"
-    read -p "Devices found $DEVICES, choose one as DEVICE" DEVICE
-    echo "$DEVICE" > .device
+    echo -e "\nFound devices: $DEVICES\n"
+    echo -e "usage: env DEVICE=<device name e.g. sdb> $0\n"
+    exit 1
 fi
 
-foundFS=$(lsblk --fs /dev/$DEVICE)
-if [[ "$foundFS" != "" ]]; then
-  echo -e "Found filesystems, please clear sd card:\n$foundFS"
+foundParts=$(lsblk -J "/dev/$DEVICE" | jq ".blockdevices[].children|length")
+if [[ "$foundParts" != "0" ]]; then
+  echo -e "Found filesystems, please umount filesystems and clear SD card partition table:\n$(lsblk --fs /dev/"$DEVICE")"
+  echo -e "\nThis command will wipe the partition table:"
+  echo -e "sudo dd if=/dev/zero of=\"/dev/$DEVICE\" bs=1M count=100\n" 
   exit 1
 fi
 
