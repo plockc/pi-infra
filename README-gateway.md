@@ -14,6 +14,16 @@ rundoc run README.md
 sudo bash gateway.sh
 ```
 
+
+## Header
+
+Make sure we fail on errors
+```bash
+#!/bin/bash
+
+set -euo pipefail
+```
+
 ## Download
 
 Download raspberry pi boot firmware and kernel
@@ -33,17 +43,11 @@ wget --no-clobber http://cdimage.ubuntu.com/releases/18.04.4/release/ubuntu-18.0
 version=1.31.1
 BUSYBOX=busybox-$version.tar.bz2
 wget --no-clobber "https://www.busybox.net/downloads/$BUSYBOX"
-tar --bzip2 --strip-components 1 -xf "$BUSYBOX" | tar zcf busybox.tar.gz
+tar --bzip2 --strip-components 1 -xf "$BUSYBOX" | tar zcf busybox.tgz
 BUSYBOX=busybox.tgz
 ```
 
 ## Install
-
-Make sure we fail on errors
-
-```bash
-set -euo pipefail
-```
 
 Find SD Card (check is for USB devices: not generic, sorry)
 
@@ -75,18 +79,17 @@ xzcat --stdout ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz | pv | sud
 Mount the ubuntu partitions
 
 ```bash
-sudo mkdir -p /media/$USER/pi{b,r}oot
+PIROOT=/media/$USER/piroot
+sudo mkdir -p /media/$USER/piboot "$PIROOT"
 sudo mount /dev/${DEVICE}1 /media/$USER/piboot
-sudo mount /dev/${DEVICE}2 /media/$USER/piroot
-pushd .
-cd /media/$USER/piroot
+sudo mount /dev/${DEVICE}2 "$PIROOT"
 ```
 
 ## Network Interfaces
 
 Set up interfaces.  `eth0` is connected to external network, while the pocket network will be on USB on `eth1`, raspberry pi 4 would have much better network speeds than earlier versions.
 
-```create-file:eth0.yml#files
+```create-file:gateway/eth0.yml#files
 network:
     version: 2
     renderer: networkd
@@ -102,7 +105,7 @@ network:
 ```
 
 Interface for external network as DHCP
-```create-file:eth1.yml#files
+```create-file:gateway/eth1.yml#files
 network:
     version: 2
     renderer: networkd
@@ -114,7 +117,7 @@ network:
 
 Example for wireless network for external interface
 
-```create-file:wlan0.yml#files
+```create-file:gateway/wlan0.yml#files
 network:
     version: 2
     renderer: networkd
@@ -133,18 +136,21 @@ network:
 Copy the network files (adjust as needed prior to running gateway.sh)
 
 ```bash
-cp eth0.yml etc/netplan/eth0.yaml
-cp eth1.yml etc/netplan/eth1.yaml
+pushd "$PIROOT"/etc/netplan
+cp ~1/gateway/eth0.yml ~1/gateway/eth1.yml .
+popd
 ```
 
 I forget why we do this, think it's to avoid cloud init from conflicting from our manual setup of netplan
-```create-file:disable-network-config.cloud-init.cfg#files
+```create-file:gateway/cloud-init/disable-network-config.cfg#files
 network: {config: disabled}"
 ```
 
 Copy the configuration files
 ```bash
-cp disable-network-config.cloud-init.cfg etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+pushd "$PIROOT"/etc/cloud/cloud.cfg.d
+cp ~1/gateway/cloud-init/disable-network-config.cfg 99-disable-network-config.cfg
+popd
 ```
 
 
@@ -152,20 +158,22 @@ cp disable-network-config.cloud-init.cfg etc/cloud/cloud.cfg.d/99-disable-networ
 
 Set the hostname
 
-```create-file:hostname.cloud-init.cfg#files
+```create-file:gateway/cloud-init/hostname.cfg#files
 hostname: infra1
 ```
 
-Turn off systemd DNS stub
-```create-file:resolved.conf#files
+Turn off systemd DNS stub so dnsmasq can listen 
+```create-file:gateway/resolved.conf#files
 echo DNSStubListener=no
 ```
 
 Copy the configuration files to mounted ubuntu filesystem
 ```bash
-cp resolv.dnsmasq.conf etc/resolv.dnsmasq.conf
-cp resolved.conf etc/systemd/resolved.conf
-cp 99-hostname.cloud-init.cfg etc/cloud/cloud.cfg.d/99-hostname.cfg
+pushd $PIROOT/etc
+cp ~1/gateway/resolv.dnsmasq.conf resolv.dnsmasq.conf
+cp ~1/gateway/resolved.conf systemd/resolved.conf
+cp ~1/gateway/cloud-init/99-hostname.cloud-init.cfg cloud/cloud.cfg.d/99-hostname.cfg
+popd
 ```
 
 
@@ -178,15 +186,17 @@ if ! ls ~/.ssh/id_*.pub; then
   echo No ssh keys in ~/.ssh
 fi
 
-echo "ssh_authorized_keys" > etc/cloud/cloud.cfg.d/99-ssh_authorized_keys.cfg
+pushd "$PIROOT"/etc/cloud/cloud.cfg.d
+echo "ssh_authorized_keys" > 99-ssh_authorized_keys.cfg
 for f in $(ls ~/.ssh/id_*.pub); do
-  echo "  - $(cat ~/.ssh/$f)" >> etc/cloud/cloud.cfg.d/99-ssh_authorized_keys.cfg
+  echo "  - $(cat ~/.ssh/$f)" >> 99-ssh_authorized_keys.cfg
 done
+popd
 ```
 
 ## Packages
 
-```create-file:packages.cloud-init.cloud-init.cfg#files
+```create-file:gateway/cloud-init/packages.cfg#files
 packages:
   - dnsmasq
   - rng-tools
@@ -200,19 +210,16 @@ packages:
 
 Copy the configuration files
 ```bash
-cp packages.cloud-init.cloud-init.cfg etc/cloud/cloud.cfg.d/99-packages.cfg
+pushd "$PIROOT"/etc/cloud/cloud.cfg.d
+cp ~1/gateway/cloud-init/packages.cfg 99-packages.cfg
+popd
 ```
 
 
 ## Firewall
 
-Enable forwarding
-
-```bash
-sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' etc/sysctl.conf
-```
-
-```create-file:rules.v4#files
+NAT the forwarded packets
+```create-file:gateway/rules.v4#files
 *filter
 :INPUT ACCEPT [1777:151380]
 :FORWARD ACCEPT [4:336]
@@ -227,14 +234,18 @@ COMMIT
 COMMIT
 ```
 
+Enable forwarding and provide iptables config on startup
+
 ```bash
-cp rules.v4 etc/iptables/
+pushd "$PIROOT"/etc
+sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' sysctl.conf
+cp ~1/gateway/rules.v4 etc/iptables/
 ```
 
 
 ## dnsmasq
 
-```create-file:pocket.dnsmasq.conf#files
+```create-file:gateway/dnsmasq/pocket.conf#files
 listen-address=192.168.3.1
 # default is 150
 cache-size=1000
@@ -259,11 +270,11 @@ resolv-file=/etc/resolv.dnsmasq.conf
 addn-hosts=/etc/hosts.dnsmasq
 ```
 
-```create-file:hosts.dnsmasq#files
+```create-file:gateway/dnsmasq/hosts#files
 192.168.3.1 infra1
 ```
 
-```create-file:resolv.dnsmasq.conf#files
+```create-file:gateway/dnsmasq/resolv.conf#files
 nameserver 1.1.1.1
 options edns0
 search k8s.local
@@ -271,9 +282,11 @@ search k8s.local
 
 Copy the configuration files
 ```bash
-cp pocket.dnsmasq.conf etc/dnsmasq.d/k8s_network
-cp hosts.dnsmasq etc/hosts.dnsmasq
-cp resolv.dnsmasq.conf etc/resolv.dnsmasq.conf
+pushd "$PIROOT"/etc
+cp ~1/gatway/dnsmasq/pocket.conf dnsmasq.d/pocket
+cp ~1/hosts hosts.dnsmasq
+cp ~1/resolv.conf etc/resolv.dnsmasq.conf
+popd
 ```
 
 
@@ -282,8 +295,10 @@ cp resolv.dnsmasq.conf etc/resolv.dnsmasq.conf
 also in there is a kernel that can work for netboot as it has statically compiled device drivers
 
 ```
+pushd "$PIROOT"
 mkdir tftpboot
-unzip "$FIRMWARE_ZIP" firmware-master/boot/**"-d /tftpboot
+unzip ~1/"$FIRMWARE_ZIP" firmware-master/boot/**" -d /tftpboot
+popd
 ```
 
 ## Installer
@@ -294,15 +309,9 @@ The installer is composed of two parts, a kernel and a initramfs which is a file
 ### Busybox
 The busybox binary needs to be compiled on the pi to be the correct architecture. Since the local machine is often not a raspi, this will be done as part of first time boot of the raspi gateway and placed into the tftp directory to be available to raspis being booted.
 
-Copy the downloaded archive so it's available for compiling on the gateway
+This is the beginning of a script run at first boot to unpack the archive in /root and compile busybox.
 
-```bash
-cp "$BUSYBOX" root/
-```
-
-This is the beginning of a script run at first boot to unpack and compile it.
-
-```create-file:busybox.sh#files
+```create-file:gateway/first-boot/busybox-compile-and-install.sh#files
 #!/bin/bash
 
 set -euo pipefail
@@ -315,15 +324,17 @@ LDFLAGS="--static" make -j2
 
 To create the initramfs, a working directory will be created and busybox installation will target the work directory and create symlinks to busybox for all the binaries it replaces.
 
-```append-file:busybox.sh#files
+```append-file:gateway/first-boot/busybox-compile-and-install.sh#files
 mkdir /root/bbroot
 LDFLAGS="--static" make install CONFIG_PREFIX=/root/bbroot
 ```
 
-Copy the busybox script to the sd card
+Copy the busybox script and the busybox archive to the sd card so it's available for first boot compile and install.
 
 ```bash
-cp busybox.sh root/
+pushd "$PIROOT"/root
+cp ~1/gateway/first-boot/"$BUSYBOX" ~1/gateway/first-boot/busybox-compile-and-install.sh .
+popd
 ```
 
 ### gateway first boot to create initramfs
@@ -336,7 +347,7 @@ The initramfs goal is to run an install script.  The install script itself is a 
 
 To be able to download the script, networking must be set up.  To set up networking udhcpc runs a script with environment variables as inputs which can be used to configure the interface.
 
-```create-file:udhcpc-configure-interface.sh#files
+```create-file:installer/udhcpc-configure-interface.sh#files
 # not starting new shell as the dhcp variables are not exported
 
 # can source this in other scripts
@@ -361,7 +372,7 @@ fi
 
 This init script allows a second init script to behave like a normal script
 
-```create-file:init#files
+```create-file:installer/init#files
 #!/bin/sh
 set -euo pipefail
 
@@ -375,7 +386,7 @@ exec setsid sh -c 'exec sh </dev/tty1 >/dev/tty1 2>&1 /sbin/init2'
 
 This script downloads and installs the install script.  
 
-```create-file:init2#files
+```create-file:installer/init2#files
 #!/bin/sh
 
 # keep the kernel messages from appearing on screen
@@ -393,14 +404,14 @@ fi
 
 Copy the init scripts to sd card so can be used during first boot
 ```bash
-cp init init2 root/
+cp ~1/installer/init{,2} "$PIROOT"/root/
 ```
 
 #### create initramfs image
 
 Prepare all the items needed for the kernel and some glibc libs that can't be statically compiled in busybox for dns.
 
-```create-file:initramfs.sh#files
+```create-file:installer/initramfs.sh#files
 #!/bin/sh
 set -euo pipefail
 
@@ -410,7 +421,7 @@ cp /lib/arm-linux-gnueabihf/libnss* lib/arm-linux-gnueabihf/
 ```
 
 overwrite the busybox init script in the initramfs directory and copy init2 and the dhcp configuration script
-```append-file:initramfs.sh#files
+```append-file:installer/initramfs.sh#files
 cp /root/init{,2}  sbin/
 mkdir -p usr/share/udhcpc
 cp /root/udhcpc-configure-interface.sh usr/share/udhcpc/default.script
@@ -418,13 +429,13 @@ sudo chmod 744 sbin/init sbin/init2 usr/share/udhcpc/default.script
 ```
 
 Create the initramfs to tftpboot dir
-```append-file:initramfs.sh#files
+```append-file:installer/initramfs.sh#files
 find . | cpio -H newc -o | gzip > /tftpboot/initramfs.img
 ```
 
-```create-file:run-cmd.cfg#files
+```create-file:gateway/run-cmd.cfg#files
 runcmd:
-  - /root/busybox.sh
+  - /root/busybox-compile-and-install.sh
   - /root/initramfs.sh
 ```
 
@@ -432,18 +443,18 @@ This cloud init fragment will run the first time boot scripts to create the init
 
 Copy the script to create the initramfs to the sd card for reference by first boot
 ```bash
-cp initramfs.sh root/
+cp installer/initramfs.sh "$PIROOT"/root/
 ```
 
 Copy the cloud init configuration to the sd card
 ```bash
-cp run-cmd.cfg etc/cloud/cloud.cfg.d/99-run-cmd.cfg
+cp installer/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg
 ```
 
 ## Install script
 
 
-```create-file:install.sh#files
+```create-file:installer/install.sh#files
 #!/bin/ash
 
 set -e
@@ -488,8 +499,10 @@ echo Successful Installation
 
 copy the install script, and OS images
 ```bash
-cp install.sh root/tftpboot/
-cp ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz /root/tftpboot/
+pushd "$PIROOT"/tftpboot/
+cp ~1/installer/install.sh .
+cp ~1/installer/ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz .
+popd
 ```
 
 ## Complete
@@ -517,6 +530,5 @@ sudo netplan apply
 - ubuntu kernel probably has some of the support as modules and needs matching initramfs
 
 ## Further Reading
-
 
 https://www.raspberrypi.org/documentation/configuration/config-txt/README.md

@@ -1,3 +1,7 @@
+#!/bin/bash
+
+set -euo pipefail
+
 FIRMWARE_ZIP=$PWD/firmware_master.zip
 wget -O "$FIRMWARE_ZIP" --no-clobber https://github.com/raspberrypi/firmware/archive/master.zip
 
@@ -6,10 +10,8 @@ wget --no-clobber http://cdimage.ubuntu.com/releases/18.04.4/release/ubuntu-18.0
 version=1.31.1
 BUSYBOX=busybox-$version.tar.bz2
 wget --no-clobber "https://www.busybox.net/downloads/$BUSYBOX"
-tar --bzip2 --strip-components 1 -xf "$BUSYBOX" | tar zcf busybox.tar.gz
+tar --bzip2 --strip-components 1 -xf "$BUSYBOX" | tar zcf busybox.tgz
 BUSYBOX=busybox.tgz
-
-set -euo pipefail
 
 while [[ "$DEVICE" == "" ]]; do
     DEVICE=$(cat .device)
@@ -26,52 +28,64 @@ fi
 
 xzcat --stdout ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz | pv | sudo dd of=/dev/$DEVICE bs=1M
 
-sudo mkdir -p /media/$USER/pi{b,r}oot
+PIROOT=/media/$USER/piroot
+sudo mkdir -p /media/$USER/piboot "$PIROOT"
 sudo mount /dev/${DEVICE}1 /media/$USER/piboot
-sudo mount /dev/${DEVICE}2 /media/$USER/piroot
-pushd .
-cd /media/$USER/piroot
+sudo mount /dev/${DEVICE}2 "$PIROOT"
 
-cp eth0.yml etc/netplan/eth0.yaml
-cp eth1.yml etc/netplan/eth1.yaml
+pushd "$PIROOT"/etc/netplan
+cp ~1/gateway/eth0.yml ~1/gateway/eth1.yml .
+popd
 
-cp disable-network-config.cloud-init.cfg etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+pushd "$PIROOT"/etc/cloud/cloud.cfg.d
+cp ~1/gateway/cloud-init/disable-network-config.cfg 99-disable-network-config.cfg
+popd
 
-cp resolv.dnsmasq.conf etc/resolv.dnsmasq.conf
-cp resolved.conf etc/systemd/resolved.conf
-cp 99-hostname.cloud-init.cfg etc/cloud/cloud.cfg.d/99-hostname.cfg
+pushd $PIROOT/etc
+cp ~1/gateway/resolv.dnsmasq.conf resolv.dnsmasq.conf
+cp ~1/gateway/resolved.conf systemd/resolved.conf
+cp ~1/gateway/cloud-init/99-hostname.cloud-init.cfg cloud/cloud.cfg.d/99-hostname.cfg
+popd
 
 if ! ls ~/.ssh/id_*.pub; then
   echo No ssh keys in ~/.ssh
 fi
 
-echo "ssh_authorized_keys" > etc/cloud/cloud.cfg.d/99-ssh_authorized_keys.cfg
+pushd "$PIROOT"/etc/cloud/cloud.cfg.d
+echo "ssh_authorized_keys" > 99-ssh_authorized_keys.cfg
 for f in $(ls ~/.ssh/id_*.pub); do
-  echo "  - $(cat ~/.ssh/$f)" >> etc/cloud/cloud.cfg.d/99-ssh_authorized_keys.cfg
+  echo "  - $(cat ~/.ssh/$f)" >> 99-ssh_authorized_keys.cfg
 done
+popd
 
-cp packages.cloud-init.cloud-init.cfg etc/cloud/cloud.cfg.d/99-packages.cfg
+pushd "$PIROOT"/etc/cloud/cloud.cfg.d
+cp ~1/gateway/cloud-init/packages.cfg 99-packages.cfg
+popd
 
-sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' etc/sysctl.conf
+pushd "$PIROOT"/etc
+sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' sysctl.conf
+cp ~1/gateway/rules.v4 etc/iptables/
 
-cp rules.v4 etc/iptables/
+pushd "$PIROOT"/etc
+cp ~1/gatway/dnsmasq/pocket.conf dnsmasq.d/pocket
+cp ~1/hosts hosts.dnsmasq
+cp ~1/resolv.conf etc/resolv.dnsmasq.conf
+popd
 
-cp pocket.dnsmasq.conf etc/dnsmasq.d/k8s_network
-cp hosts.dnsmasq etc/hosts.dnsmasq
-cp resolv.dnsmasq.conf etc/resolv.dnsmasq.conf
+pushd "$PIROOT"/root
+cp ~1/gateway/first-boot/"$BUSYBOX" ~1/gateway/first-boot/busybox-compile-and-install.sh .
+popd
 
-cp "$BUSYBOX" root/
+cp ~1/installer/init{,2} "$PIROOT"/root/
 
-cp busybox.sh root/
+cp installer/initramfs.sh "$PIROOT"/root/
 
-cp init init2 root/
+cp installer/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg
 
-cp initramfs.sh root/
-
-cp run-cmd.cfg etc/cloud/cloud.cfg.d/99-run-cmd.cfg
-
-cp install.sh root/tftpboot/
-cp ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz /root/tftpboot/
+pushd "$PIROOT"/tftpboot/
+cp ~1/installer/install.sh .
+cp ~1/installer/ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz .
+popd
 
 sync
 sudo umount /dev/${DEVICE}1 /dev/${DEVICE}2
