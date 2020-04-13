@@ -29,11 +29,13 @@ if [[ "$foundParts" != "0" ]]; then
 fi
 
 xzcat --stdout ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz | pv | sudo dd of=/dev/$DEVICE bs=1M
+sudo partprobe 
 
 PIROOT=/media/$USER/piroot
 sudo mkdir -p /media/$USER/piboot "$PIROOT"
 sudo mount /dev/${DEVICE}1 /media/$USER/piboot
 sudo mount /dev/${DEVICE}2 "$PIROOT"
+
 
 pushd "$PIROOT"/etc/netplan
 sudo cp ~1/gateway/{wlan0,eth{0,1}}.yaml .
@@ -86,7 +88,7 @@ sudo cp busybox.tgz gateway/first-boot/busybox-compile-and-install.sh "$PIROOT/r
 
 sudo cp installer/init{,2} "$PIROOT"/root/
 
-sudo chmod 755 install/udhcpc-configure-interface.sh
+sudo chmod 755 installer/udhcpc-configure-interface.sh
 sudo cp installer/{udhcpc-configure-interface.sh,initramfs.sh} "$PIROOT"/root/
 
 sudo cp gateway/first-boot/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg

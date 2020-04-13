@@ -9,5 +9,5 @@ network:
             critical: true
             dhcp4: true
             access-points:
-                "SSID":
-                    password: "PASSWORD"
+                "cpnetnew":
+                    password: "cpcrewnet"

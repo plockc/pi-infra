@@ -76,6 +76,7 @@ Unpack ubuntu onto the selected device
 
 ```bash
 xzcat --stdout ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz | pv | sudo dd of=/dev/$DEVICE bs=1M
+sudo partprobe
 ```
 
 Mount the ubuntu partitions
@@ -188,7 +189,7 @@ if ! ls ~/.ssh/id_*.pub; then
 fi
 
 pushd "$PIROOT"/etc/cloud/cloud.cfg.d
-echo "ssh_authorized_keys" | sudo tee 99-ssh_authorized_keys.cfg 2>/dev/null
+echo "ssh_authorized_keys:" | sudo tee 99-ssh_authorized_keys.cfg 2>/dev/null
 for f in $(ls ~/.ssh/id_*.pub); do
   echo "  - $(cat $f)" | sudo tee -a 99-ssh_authorized_keys.cfg 2>/dev/null
 done
@@ -447,7 +448,7 @@ This cloud init fragment will run the first time boot scripts to create the init
 
 Copy the script to create the initramfs to the sd card for reference by first boot
 ```bash
-sudo chmod 755 installer/udhcpc-configure-interface.sh
+sudo chmod 755 installer/{udhcpc-configure-interface.sh,initramfs.sh}
 sudo cp installer/{udhcpc-configure-interface.sh,initramfs.sh} "$PIROOT"/root/
 ```
 
