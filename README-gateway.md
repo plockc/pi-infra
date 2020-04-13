@@ -24,6 +24,7 @@ Make sure we fail on errors
 set -euo pipefail
 ```
 
+
 ## Download
 
 Download raspberry pi boot firmware and kernel
@@ -302,7 +303,7 @@ also in there is a kernel that can work for netboot as it has statically compile
 ```bash
 pushd "$PIROOT"
 sudo mkdir -p tftpboot
-sudo tar -C tftpboot -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot --strip-components=2
+sudo tar -C tftpboot  --strip-components=2 -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot
 popd
 ```
 
