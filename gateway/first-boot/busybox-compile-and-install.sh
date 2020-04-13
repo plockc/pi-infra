@@ -2,8 +2,9 @@
 
 set -euo pipefail
 
-tar --bzip2 -xv /root/$BUSYBOX
-cd busybox-$version
+mkdir -p busybox
+tar -C busybox --strip-components 1 -zxvf /root/busybox.tgz
+cd busybox
 make defconfig
 LDFLAGS="--static" make -j2
 mkdir /root/bbroot

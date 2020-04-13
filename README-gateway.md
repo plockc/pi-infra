@@ -44,8 +44,7 @@ version=1.31.1
 BUSYBOX=busybox-$version.tar.bz2
 wget --no-clobber "https://www.busybox.net/downloads/$BUSYBOX"
 tar --bzip2 -xf "$BUSYBOX"
-BUSYBOX=busybox.tgz
-tar --strip-components 1 -cf "$BUSYBOX" busybox-$version
+tar -zcf busybox.tgz busybox-$version
 ```
 
 ## Install
@@ -92,7 +91,7 @@ sudo mount /dev/${DEVICE}2 "$PIROOT"
 
 Set up interfaces.  `eth0` is connected to external network, while the pocket network will be on USB on `eth1`, raspberry pi 4 would have much better network speeds than earlier versions.
 
-```create-file:gateway/eth0.yml#files
+```create-file:gateway/eth0.yaml#files
 network:
     version: 2
     renderer: networkd
@@ -108,7 +107,7 @@ network:
 ```
 
 Interface for external network as DHCP
-```create-file:gateway/eth1.yml#files
+```create-file:gateway/eth1.yaml#files
 network:
     version: 2
     renderer: networkd
@@ -120,7 +119,7 @@ network:
 
 Example for wireless network for external interface
 
-```create-file:gateway/wlan0.yml#files
+```create-file:gateway/wlan0.yaml#files
 network:
     version: 2
     renderer: networkd
@@ -140,13 +139,13 @@ Copy the network files (adjust as needed prior to running gateway.sh)
 
 ```bash
 pushd "$PIROOT"/etc/netplan
-sudo cp ~1/gateway/eth0.yml ~1/gateway/eth1.yml .
+sudo cp ~1/gateway/{wlan0,eth{0,1}}.yaml .
 popd
 ```
 
 I forget why we do this, think it's to avoid cloud init from conflicting from our manual setup of netplan
 ```create-file:gateway/cloud-init/disable-network-config.cfg#files
-network: {config: disabled}"
+network: {config: disabled}
 ```
 
 Copy the configuration files
@@ -173,9 +172,8 @@ echo DNSStubListener=no
 Copy the configuration files to mounted ubuntu filesystem
 ```bash
 pushd $PIROOT/etc
-sudo cp ~1/gateway/resolv.dnsmasq.conf resolv.dnsmasq.conf
 sudo cp ~1/gateway/resolved.conf systemd/resolved.conf
-sudo cp ~1/gateway/cloud-init/99-hostname.cloud-init.cfg cloud/cloud.cfg.d/99-hostname.cfg
+sudo cp ~1/gateway/cloud-init/hostname.cfg cloud/cloud.cfg.d/99-hostname.cfg
 popd
 ```
 
@@ -190,11 +188,12 @@ if ! ls ~/.ssh/id_*.pub; then
 fi
 
 pushd "$PIROOT"/etc/cloud/cloud.cfg.d
-echo "ssh_authorized_keys" > 99-ssh_authorized_keys.cfg
+echo "ssh_authorized_keys" | sudo tee 99-ssh_authorized_keys.cfg 2>/dev/null
 for f in $(ls ~/.ssh/id_*.pub); do
-  echo "  - $(cat ~/.ssh/$f)" >> 99-ssh_authorized_keys.cfg
+  echo "  - $(cat $f)" | sudo tee -a 99-ssh_authorized_keys.cfg 2>/dev/null
 done
 popd
+
 ```
 
 ## Packages
@@ -241,8 +240,10 @@ Enable forwarding and provide iptables config on startup
 
 ```bash
 pushd "$PIROOT"/etc
-sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' sysctl.conf
-sudo cp ~1/gateway/rules.v4 etc/iptables/
+sudo sed -i 's/^#net.ipv4.ip_forward/net.ipv4.ip_forward/' sysctl.conf
+sudo mkdir -p iptables
+sudo cp ~1/gateway/rules.v4 iptables/
+popd
 ```
 
 
@@ -286,9 +287,9 @@ search k8s.local
 Copy the configuration files
 ```bash
 pushd "$PIROOT"/etc
-sudo cp ~1/gatway/dnsmasq/pocket.conf dnsmasq.d/pocket
-sudo cp ~1/hosts hosts.dnsmasq
-sudo cp ~1/resolv.conf etc/resolv.dnsmasq.conf
+sudo cp ~1/gateway/dnsmasq/pocket.conf dnsmasq.d/pocket
+sudo cp ~1/gateway/dnsmasq/hosts hosts.dnsmasq
+sudo cp ~1/gateway/dnsmasq/resolv.conf resolv.dnsmasq.conf
 popd
 ```
 
@@ -297,10 +298,10 @@ popd
 
 also in there is a kernel that can work for netboot as it has statically compiled device drivers
 
-```
+```bash
 pushd "$PIROOT"
-mkdir tftpboot
-tar zxf ~1/"$FIRMWARE_ARCHIVE" --strip-components=1 boot/**" -d /tftpboot
+sudo mkdir -p tftpboot
+sudo tar -C tftpboot -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot --strip-components=2
 popd
 ```
 
@@ -319,8 +320,9 @@ This is the beginning of a script run at first boot to unpack the archive in /ro
 
 set -euo pipefail
 
-tar --bzip2 -xv /root/$BUSYBOX
-cd busybox-$version
+mkdir -p busybox
+tar -C busybox --strip-components 1 -zxvf /root/busybox.tgz
+cd busybox
 make defconfig
 LDFLAGS="--static" make -j2
 ```
@@ -335,9 +337,8 @@ LDFLAGS="--static" make install CONFIG_PREFIX=/root/bbroot
 Copy the busybox script and the busybox archive to the sd card so it's available for first boot compile and install.
 
 ```bash
-pushd "$PIROOT"/root
-sudo cp ~1/gateway/first-boot/"$BUSYBOX" ~1/gateway/first-boot/busybox-compile-and-install.sh .
-popd
+chmod 755 gateway/first-boot/busybox-compile-and-install.sh
+sudo cp busybox.tgz gateway/first-boot/busybox-compile-and-install.sh "$PIROOT/root"
 ```
 
 ### gateway first boot to create initramfs
@@ -407,7 +408,7 @@ fi
 
 Copy the init scripts to sd card so can be used during first boot
 ```bash
-sudo cp ~1/installer/init{,2} "$PIROOT"/root/
+sudo cp installer/init{,2} "$PIROOT"/root/
 ```
 
 #### create initramfs image
@@ -415,7 +416,7 @@ sudo cp ~1/installer/init{,2} "$PIROOT"/root/
 Prepare all the items needed for the kernel and some glibc libs that can't be statically compiled in busybox for dns.
 
 ```create-file:installer/initramfs.sh#files
-#!/bin/sh
+#!/bin/bash
 set -euo pipefail
 
 cd /root/bbroot
@@ -436,7 +437,7 @@ Create the initramfs to tftpboot dir
 find . | cpio -H newc -o | gzip > /tftpboot/initramfs.img
 ```
 
-```create-file:gateway/run-cmd.cfg#files
+```create-file:gateway/first-boot/run-cmd.cfg#files
 runcmd:
   - /root/busybox-compile-and-install.sh
   - /root/initramfs.sh
@@ -446,12 +447,13 @@ This cloud init fragment will run the first time boot scripts to create the init
 
 Copy the script to create the initramfs to the sd card for reference by first boot
 ```bash
-sudo cp installer/initramfs.sh "$PIROOT"/root/
+sudo chmod 755 installer/udhcpc-configure-interface.sh
+sudo cp installer/{udhcpc-configure-interface.sh,initramfs.sh} "$PIROOT"/root/
 ```
 
 Copy the cloud init configuration to the sd card
 ```bash
-sudo cp installer/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg
+sudo cp gateway/first-boot/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg
 ```
 
 ## Install script
@@ -503,8 +505,8 @@ echo Successful Installation
 copy the install script, and OS images
 ```bash
 pushd "$PIROOT"/tftpboot/
-cp ~1/installer/install.sh .
-cp ~1/installer/ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz .
+sudo cp ~1/installer/install.sh .
+sudo cp ~1/ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz .
 popd
 ```
 
