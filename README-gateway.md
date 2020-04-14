@@ -360,15 +360,15 @@ To be able to download the script, networking must be set up.  To set up network
 set +x
 env > /etc/dhcp.env
 
-if [[ "\$1" != "bound" ]]; then
+if [[ "$1" != "bound" ]]; then
     echo DHCP interface not bound ...
     exit 0
 fi
-ip addr add \$ip/\$mask dev \$interface
-ip route add default via \$router dev \$interface
-echo nameserver \$dns > /etc/resolv.conf
+ip addr add $ip/$mask dev $interface
+ip route add default via $router dev $interface
+echo nameserver $dns > /etc/resolv.conf
 echo Networking is configured
-if tftp -g -l /root/install.sh -r install.sh \$router 2>/dev/null; then
+if tftp -g -l /root/install.sh -r install.sh $router 2>/dev/null; then
     chmod 744 /root/install.sh
     echo Install script retrieved
 else
@@ -398,7 +398,8 @@ This script downloads and installs the install script.
 # keep the kernel messages from appearing on screen
 echo 0 > /proc/sys/kernel/printk
 
-# bring link up so DHCP client can send packets
+# bring link up after we wait a second for it to appear so DHCP client can send packets
+sleep 1
 ip link set dev eth0 up
 
 echo Starting udhcpc
@@ -428,6 +429,7 @@ sudo cp /lib/arm-linux-gnueabihf/libnss* lib/arm-linux-gnueabihf/
 
 overwrite the busybox init script in the initramfs directory and copy init2 and the dhcp configuration script
 ```append-file:installer/initramfs.sh#files
+rm sbin/init
 cp /root/init{,2}  sbin/
 mkdir -p usr/share/udhcpc
 cp /root/udhcpc-configure-interface.sh usr/share/udhcpc/default.script
@@ -475,31 +477,32 @@ tftp -g -r "$image" $router
 
 zcat $image | dd of=/dev/mmcblk0 bs=1M
 
+partprobe
+
 mkdir -p /mnt
 mkdir -p boot
-mount /dev/mmcblk0p1 /boot
+mount /dev/mmcblk0p1 boot
 mount /dev/mmcblk0p2 /mnt
 
-wget -O - https://github.com/rancher/k3os/releases/download/v0.9.0/k3os-rootfs-arm.tar.gz | tar zxvf - --strip-components=1 -C /mnt
+#wget -O - https://github.com/rancher/k3os/releases/download/v0.9.0/k3os-rootfs-arm.tar.gz | tar zxvf - --strip-components=1 -C /mnt
 
-cat >> /boot/config.txt <<EOF
+cat >> boot/config.txt <<EOF
 framebuffer_width=800
 framebuffer_height=480
 
 #arm_64bit=1
 EOF
 
-#cat  > /boot/cmdline.txt <<EOF
+#cat  > boot/cmdline.txt <<EOF
 #root=/dev/mmcblk0p2 init=/sbin/init rw rootwait elevator=deadline
 #EOF
 
 # if 64 bit, remember to update config.txt with arm_64bit=1 and use kernel8.img instead of kernel7l.img
-#tftp -g -l /boot/kernel7.img -r vmlinuz-5.3.0-1018-raspi2 $router
+#tftp -g -l boot/kernel7.img -r vmlinuz-5.3.0-1018-raspi2 $router
 
 sync
 
-umount /boot
-umount /mnt
+umount boot /mnt
 
 echo Successful Installation
 ```
