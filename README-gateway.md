@@ -296,9 +296,11 @@ popd
 ```
 
 
-## Firmware
+## Raspi Specific Boot
 
-also in there is a kernel that can work for netboot as it has statically compiled device drivers
+#### Firmware and Kernel
+
+Also in the downloaded firmware there is a kernel that can work for netboot as it has statically compiled device drivers
 
 ```bash
 pushd "$PIROOT"
@@ -306,6 +308,20 @@ sudo mkdir -p tftpboot
 sudo tar -C tftpboot  --strip-components=2 -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot
 popd
 ```
+
+#### Load kernel and initramfs
+
+Loads the initramfs right after the kernel and sets it up so kernel uses it
+```bash
+pushd "$PIROOT"
+cat > tftpboot/config.txt <<EOF
+initramfs initramfs.img followkernel
+framebuffer_width=800
+framebuffer_height=480
+EOF
+popd
+```
+
 
 ## Installer
 
