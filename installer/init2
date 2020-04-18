@@ -3,7 +3,8 @@
 # keep the kernel messages from appearing on screen
 echo 0 > /proc/sys/kernel/printk
 
-# bring link up so DHCP client can send packets
+# bring link up after we wait a second for it to appear so DHCP client can send packets
+sleep 1
 ip link set dev eth0 up
 
 echo Starting udhcpc

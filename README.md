@@ -50,6 +50,16 @@ k3os hostnames (`m` master, `w` worker): `pik8s{m,w}[0-9]+`
 
 ## Script Generation
 
+The vars below will be written to vars.sh and will be sourced by `gateway.sh`.
+If DEVICE is empty, then `gateway.sh` will suggest USB block devices that can be used.  The external device is for the gateway and should have access to the gateway to internet, acceptable values are eth0 and wlan0, eth1 on USB is expected to be the pocket network.
+
+```create-file:gateway/vars.sh#files
+DEVICE=
+EXTERNAL_DEVICE=eth0
+```
+
+This will extract `gateway.sh` from `README-gateway.md`.
+
 ```bash
 rundoc list-blocks README-gateway.md -t bash | jq -r '.code_blocks[] | .code' > gateway.sh
 rundoc run README-gateway.md -t files

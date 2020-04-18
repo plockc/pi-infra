@@ -6,7 +6,7 @@ Also, the host the script is run on needs to be on the same network that the ext
 
 ## Executing this script
 
-Install rundoc, extract the script embedded in this README, the run it
+Install rundoc, execute rundoc to extract the script embedded in this README, edit configuration in vars.sh, the run the gateway install script.
 
 ```usage
 pip3 install rundoc
@@ -17,11 +17,13 @@ gateway.sh
 
 ## Header
 
-Make sure we fail on errors
+For gateway, make sure we fail on errors and load the vars.
 ```bash
 #!/bin/bash
 
 set -euo pipefail
+
+source gateway/vars.sh
 ```
 
 
@@ -222,6 +224,8 @@ popd
 
 ## Firewall
 
+This is not firewalling, it's just forwarding packets with NAT currently.
+
 NAT the forwarded packets
 ```create-file:gateway/rules.v4#files
 *filter
@@ -251,11 +255,14 @@ popd
 
 ## dnsmasq
 
+DNS and DHCP will be configured on eth1 for the pocket network, and provide a DNS server on eth0 and wlan0 to optionally provide DNS for the external network.
+
 ```create-file:gateway/dnsmasq/pocket.conf#files
 listen-address=192.168.3.1
 # default is 150
 cache-size=1000
-interface=eth0
+no-dhcp-interface=eth0
+no-dhcp-interface=eth1
 domain=k8s.local
 # gateway
 dhcp-option=3,0.0.0.0

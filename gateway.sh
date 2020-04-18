@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+source gateway/vars.sh
+
 FIRMWARE_ARCHIVE=firmware_master.tgz
 [[ ! -f "$FIRMWARE_ARCHIVE" ]] && wget -O "$FIRMWARE_ARCHIVE" https://github.com/raspberrypi/firmware/archive/master.tar.gz
 
@@ -29,13 +31,12 @@ if [[ "$foundParts" != "0" ]]; then
 fi
 
 xzcat --stdout ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz | pv | sudo dd of=/dev/$DEVICE bs=1M
-sudo partprobe 
+sudo partprobe
 
 PIROOT=/media/$USER/piroot
 sudo mkdir -p /media/$USER/piboot "$PIROOT"
 sudo mount /dev/${DEVICE}1 /media/$USER/piboot
 sudo mount /dev/${DEVICE}2 "$PIROOT"
-
 
 pushd "$PIROOT"/etc/netplan
 sudo cp ~1/gateway/{wlan0,eth{0,1}}.yaml .
@@ -55,7 +56,7 @@ if ! ls ~/.ssh/id_*.pub; then
 fi
 
 pushd "$PIROOT"/etc/cloud/cloud.cfg.d
-echo "ssh_authorized_keys" | sudo tee 99-ssh_authorized_keys.cfg 2>/dev/null
+echo "ssh_authorized_keys:" | sudo tee 99-ssh_authorized_keys.cfg 2>/dev/null
 for f in $(ls ~/.ssh/id_*.pub); do
   echo "  - $(cat $f)" | sudo tee -a 99-ssh_authorized_keys.cfg 2>/dev/null
 done
@@ -80,7 +81,15 @@ popd
 
 pushd "$PIROOT"
 sudo mkdir -p tftpboot
-sudo tar -C tftpboot -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot --strip-components=2
+sudo tar -C tftpboot  --strip-components=2 -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot
+popd
+
+pushd "$PIROOT"
+cat > tftpboot/config.txt <<EOF
+initramfs initramfs.img followkernel
+framebuffer_width=800
+framebuffer_height=480
+EOF
 popd
 
 chmod 755 gateway/first-boot/busybox-compile-and-install.sh
@@ -88,7 +97,7 @@ sudo cp busybox.tgz gateway/first-boot/busybox-compile-and-install.sh "$PIROOT/r
 
 sudo cp installer/init{,2} "$PIROOT"/root/
 
-sudo chmod 755 installer/udhcpc-configure-interface.sh
+sudo chmod 755 installer/{udhcpc-configure-interface.sh,initramfs.sh}
 sudo cp installer/{udhcpc-configure-interface.sh,initramfs.sh} "$PIROOT"/root/
 
 sudo cp gateway/first-boot/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg
