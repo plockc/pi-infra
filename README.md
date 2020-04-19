@@ -1,6 +1,14 @@
 # pi-infra
 home infrastructure based on raspberry pi, including netboot and kubernetes cluster
 
+## Executing this script
+
+```
+pip3 install rundoc
+rundoc run -a README.md
+gateway.sh
+```
+
 ## Hardware
 
 - Desktop UNIX to install gateway to SD card
@@ -50,12 +58,13 @@ k3os hostnames (`m` master, `w` worker): `pik8s{m,w}[0-9]+`
 
 ## Script Generation
 
-The vars below will be written to vars.sh and will be sourced by `gateway.sh`.
-If DEVICE is empty, then `gateway.sh` will suggest USB block devices that can be used.  The external device is for the gateway and should have access to the gateway to internet, acceptable values are eth0 and wlan0, eth1 on USB is expected to be the pocket network.
+The env below will be used to template `gateway/vars.sh` which will be sourced by `gateway.sh`.  For details of the content of these values, see [README-gateway.sh](gREADME-gateway.sh).
 
-```create-file:gateway/vars.sh#files
+```env
 DEVICE=
 EXTERNAL_DEVICE=eth0
+WIFI_SSID=CONFIGURE_SSID
+WIFI_PASSWORD=CONFIGURE_PASSWORD
 ```
 
 This will extract `gateway.sh` from `README-gateway.md`.
