@@ -439,8 +439,8 @@ This script downloads and installs the install script.
 # keep the kernel messages from appearing on screen
 echo 0 > /proc/sys/kernel/printk
 
-# bring link up after we wait a second for it to appear so DHCP client can send packets
-sleep 1
+# bring link up after we wait a few seconds (1 is not enough) for it to appear so DHCP client can send packets
+sleep 3
 ip link set dev eth0 up
 
 echo Starting udhcpc
@@ -486,6 +486,8 @@ find . | cpio -H newc -o | gzip > /tftpboot/initramfs.img
 runcmd:
   - /root/busybox-compile-and-install.sh
   - /root/initramfs.sh
+  # TODO: see why dnsmasq tries to start before interface is ready
+  - systemctl restart dnsmasq
 ```
 
 This cloud init fragment will run the first time boot scripts to create the initramfs
