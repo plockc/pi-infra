@@ -505,14 +505,19 @@ sudo cp gateway/first-boot/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cm
 
 ## Install script
 
+This script is run from init2 on the netbooted initramfs to install ubuntu's preinstalled server image onto the disk.
 
+Start with bash header and include all the variables from dhcp that can be used to find things
 ```create-file:installer/install.sh#files
 #!/bin/ash
 
 set -e
 
 source /etc/dhcp.env
+```
 
+Write the image to disk then mount the partitions
+```append-file:installer/install.sh#files
 echo RUNNING INSTALL
 
 image=ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz
@@ -526,23 +531,9 @@ mkdir -p /mnt
 mkdir -p boot
 mount /dev/mmcblk0p1 boot
 mount /dev/mmcblk0p2 /mnt
-
-#wget -O - https://github.com/rancher/k3os/releases/download/v0.9.0/k3os-rootfs-arm.tar.gz | tar zxvf - --strip-components=1 -C /mnt
-
-cat >> boot/config.txt <<EOF
-framebuffer_width=800
-framebuffer_height=480
-
-#arm_64bit=1
-EOF
-
-#cat  > boot/cmdline.txt <<EOF
-#root=/dev/mmcblk0p2 init=/sbin/init rw rootwait elevator=deadline
-#EOF
-
-# if 64 bit, remember to update config.txt with arm_64bit=1 and use kernel8.img instead of kernel7l.img
-#tftp -g -l boot/kernel7.img -r vmlinuz-5.3.0-1018-raspi2 $router
-
+```
+Clean up and end the installation
+```append-file:installer/install.sh#files
 sync
 
 umount boot /mnt
@@ -550,7 +541,7 @@ umount boot /mnt
 echo Successful Installation
 ```
 
-copy the install script, and OS images
+Copy the install script, and OS images
 ```bash
 pushd "$PIROOT"/tftpboot/
 sudo cp ~1/installer/install.sh .
@@ -570,6 +561,36 @@ sudo eject /dev/${DEVICE}
 echo Completed!
 ```
 
+## Serial Console
+
+### Serial Device
+Some text says ttyAMA0 would be the serial port on pins 8 and 10 on the pi, however bluetooth on pi3+ used ttyAMA0, and instead serial was moved to ttyS0 unless bluetooth was disabled in boot config `dtoverlay=pi3-disable-bt`.  Ubuntu (20 and 18?) can use serial0 which will pick the right device for you.  
+
+### Kernel Config
+Usually with serial console, two entries exist in the kernel command line for "console".  One for serial console with a baud rate, e.g.: `console=serial0,115200`.  Also the console still should go to the normal display device so another entry is for tty1.
+
+### USB 
+I paid $11 for 3 pack of EVISWIY PL2303TA USB to TTL Serial Cable, seems to work fine.  the serial port shows up as `/dev/ttyUSB0`.
+
+### Client
+
+(Picocom)[https://github.com/npat-efault/picocom] works well.
+
+To collect the terminal current height and width and then run picocom assuming USB to serial port adapter.
+
+```
+tput cols
+tput lines
+sudo picocom -b 115200 /dev/ttyUSB0
+```
+
+Set the terminal height and width with the values collected above
+```
+stty rows 24 cols 80
+```
+
+Exit session with `Ctrl-a Ctrl-x`
+
 ## Notes
 
 Manually update network interface configuration by editing files in `/etc/netplan`
@@ -583,6 +604,7 @@ sudo netplan apply
 
 - 7 green blinks mean kernel is not found
 - ubuntu kernel probably has some of the support as modules and needs matching initramfs
+- if the screen scales to a higher resolution and becomes blurry (cheap 5" screens off of amazon), set framebuffer_width and framebuffer_height in config.txt for the actual hardware
 
 ## Further Reading
 
