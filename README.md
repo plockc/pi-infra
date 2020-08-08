@@ -48,24 +48,8 @@ The cluster token is acquired and configured, then the remaining raspis are boot
 
 The cluster depends on physical security.  Later upgrades will focus on encrypted disk and intervention to decrypt on boot (which later can be helped via serial port access)
 
-## Network
-
-not routed / pocket ip range: 192.168.3.0/24
-pocket network gateway & DNS: 192.168.3.1
-gateway hostname: infra1
-
-k3os hostnames (`m` master, `w` worker): `pik8s{m,w}[0-9]+`
 
 ## Script Generation
-
-The env below will be used to template `gateway/vars.sh` which will be sourced by `gateway.sh`.  For details of the content of these values, see [README-gateway.sh](gREADME-gateway.sh).
-
-```env
-DEVICE=
-EXTERNAL_DEVICE=eth0
-WIFI_SSID=CONFIGURE_SSID
-WIFI_PASSWORD=CONFIGURE_PASSWORD
-```
 
 This will extract `gateway.sh` from `README-gateway.md`.
 

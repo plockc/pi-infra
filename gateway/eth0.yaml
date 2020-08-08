@@ -3,10 +3,4 @@ network:
     renderer: networkd
     ethernets:
         eth0:
-            optional: true
-            dhcp4: false
-            addresses: [192.168.3.1/24]
-            # no gateway, we don't want this host to route over the pocket
-            nameservers:
-                    search: [k8s.local]
-                    addresses: [192.168.3.1, 1.1.1.1]
+            dhcp4: true

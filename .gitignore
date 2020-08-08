@@ -3,3 +3,9 @@ busybox.tgz
 busybox-*.tar.bz2
 busybox-*/
 firmware_master.tgz
+gateway.sh
+gateway/cloud-init/99-disable-network-config.cfg
+gateway/cloud-init/99-packages.cfg
+gateway/wlan0.yaml
+gateway/eth0.yaml
+gateway.sh
