@@ -27,6 +27,8 @@ Other ports normally will be untagged ports so the attached device thinks their 
 
 This configuration will NAT northbound (towards default gateway) traffic.  New connections destined for this host is firewalled except for basic ping and ssh, but outbound from this host is open.  Filtering will block new and existing connections inbound and outbound, otherwise it will forward all packets to the upstream gateway, and forward return traffic from the upstream gateway only for established connections.  New connections inbound will be blocked.
 
+Filtering is based on resolving a list of hostnames from a config file.  The set of resolved IPs for each host expires after 5 minutes, and the config file is checked for updates every 30 seconds.  An iptables ipset is updated if the list of IPs has changed.  Problems with lookups will eventually not filter traffic.  
+
 ## Configuration
 
 The northbound gateway
@@ -34,11 +36,19 @@ The northbound gateway
 GATEWAY=192.168.1.1
 ```
 
+## Enable Forwarding
+
+Normally linux drops traffic if neither the source or destination is this box, so enable forwarding:
+```bash
+sudo sysctl -w net.ipv4.ip_forward=1
+echo "net.ipv4.ip_forward = 1" | sudo tee -a /etc/sysctl.d/99-ip-forwarding.conf
+```
+
 ## Creating the rules.v4 file
 
 Install iptables-persistent, which will read `/etc/iptables/rules.v{4,6}` to initialize iptables on start.
-```
-sudo apt-get install -y iptables-persistent
+```bash
+sudo apt-get install -y iptables-persistent ipset
 ```
 
 Create rules.v4
@@ -97,6 +107,31 @@ Some ICMP messages for rejected packets
 
 ### Traffic forwarded (src and dest are both not this host)
 
+#### Filtered Traffic
+
+Create the ipsets used for remote services to be filtered
+```bash
+sudo ipset create gaming-servers hash:ip -exist timeout 90 
+sudo ipset create video-servers hash:ip -exist timeout 90
+```
+
+Create the ipsets used for local hosts to be filtered
+```bash
+sudo ipset create gaming-clients hash:ip -exist 
+sudo ipset create video-clients hash:ip -exist
+```
+
+Mark any packets that belong to the client sets
+```r-append-file:rules.v4
+-A FORWARD -m set --match-set gaming-clients src,dst -j MARK --set-xmark 0x1/0x0
+-A FORWARD -m set --match-set video-clients src,dst -j MARK --set-xmark 0x2/0x0
+```
+
+Block clients from servers
+```r-append-file:rules.v4
+-A FORWARD -m set --match-set gaming-servers dst,src -m mark --mark 0x1 -j DROP
+```
+
 #### Allowed Traffic
 
 Forward any traffic outbound to gateway
@@ -104,7 +139,6 @@ Forward any traffic outbound to gateway
 -A FORWARD --destination %:GATEWAY:% -j ACCEPT
 ```
 
-TODO: block even established connections if filtered
 Forward any packets on already established connections
 ```append-file:rules.v4
 -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
@@ -133,9 +167,9 @@ Default is to not NAT traffic
 :POSTROUTING ACCEPT [0:0]
 ```
 
-NAT traffic routed to the gateway
+NAT traffic routed to the gateway, as gw doesn't have route back to filtered hosts
 ```r-append-file:rules.v4
--A POSTROUTING --destination 192.168.1.1 -j MASQUERADE
+-A POSTROUTING --destination %:GATEWAY:% -j MASQUERADE
 ```
 
 Commit the changes
