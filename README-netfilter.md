@@ -180,30 +180,16 @@ Commit the changes
 COMMIT
 ```
 
-### NAT outbound traffic
-
-Default is to not NAT traffic
+### Rest of tables no-op
+Reset all the other tables
 ```append-file:rules.v4
 *nat
 :PREROUTING ACCEPT [0:0]
 :INPUT ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
 :POSTROUTING ACCEPT [0:0]
-```
-
-NAT traffic routed to the gateway, as gw doesn't have route back to filtered hosts
-```r-append-file:rules.v4
--A POSTROUTING --destination %:GATEWAY:% -j MASQUERADE
-```
-
-Commit the changes
-```append-file:rules.v4
 COMMIT
-```
 
-### Rest of tables no-op
-Reset all the other tables
-```append-file:rules.v4
 *raw
 :PREROUTING ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
@@ -270,7 +256,7 @@ sudo ip6tables-restore -t rules.v6
 Install the rules
 ```bash
 sudo cp rules.v4 /etc/iptables/
-sudp cp rules.v6 /etc/iptables/
+sudo cp rules.v6 /etc/iptables/
 ```
 
 Load the rules (ubuntu specific service name)
