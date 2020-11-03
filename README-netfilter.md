@@ -35,6 +35,11 @@ New connections destined for this host are firewalled except for basic ping and 
   
 Filtering is based on resolving a list of hostnames from a config file and configuring iptables rules.  The set of resolved IPs for each host expires after 5 minutes, and the config file is checked for updates every 30 seconds.  An iptables ipset is updated if the list of IPs has changed.  Problems with lookups will eventually not filter traffic.
 
+## Install and Configure
+```
+rundoc run README-netfilter.md
+```
+
 ## Configuration
 
 The northbound gateway
@@ -48,7 +53,7 @@ Normally linux drops traffic if neither the source or destination is this box, s
 ```bash
 echo Enabling IP forwarding...
 sudo sysctl -w net.ipv4.ip_forward=1
-echo "net.ipv4.ip_forward = 1" | sudo tee -a /etc/sysctl.d/99-ip-forwarding.conf
+echo "net.ipv4.ip_forward = 1" | sudo tee /etc/sysctl.d/99-ip-forwarding.conf
 ```
 
 ## Load and configure the bridge netfilter kernel module
@@ -59,27 +64,24 @@ This will enable the module, load it on boot, and configure it to send bridged I
 ```bash
 echo Installing and configuring br_netfilter kernel module to filter VLAN tagged IP traffic on bridges
 sudo modprobe br_netfilter
-echo "install br_netfilter" | sudo tee -a /etc/modprobe.d/br_netfilter > /dev/null
+echo "install br_netfilter" | tee /etc/modprobe.d/br_netfilter > /dev/null
 sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
 sudo sysctl -w net.bridge.bridge-nf-filter-vlan-tagged=1
-echo "net.bridge.bridge-nf-call-iptables = 1" | sudo tee -a /etc/sysctl.d/99-bridge-netfilter.conf
-echo "net.bridge.bridge-nf-filter-vlan-tagged = 1" | sudo tee -a /etc/sysctl.d/99-bridge-netfilter.conf
+echo "net.bridge.bridge-nf-call-iptables = 1" | sudo tee /etc/sysctl.d/99-bridge-netfilter.conf
+echo "net.bridge.bridge-nf-filter-vlan-tagged = 1" | sudo tee /etc/sysctl.d/99-bridge-netfilter.conf
 ```
 
-## Creating the rules.v4 file
+## Creating the rules.v4 file for IPV4
 
+Default packet filtering policy is to DROP packets coming in to this host or forwarded, but outgoing connectivity is normally not blocked.
+
+
+### Install iptables-persistent
 Install iptables-persistent, which will read `/etc/iptables/rules.v{4,6}` to initialize iptables on start.
+
 ```bash
 sudo apt-get install -y iptables-persistent ipset
 ```
-
-Create rules.v4
-```
-rundoc run README-netfilter.md
-```
-
-## IPV4
-Default packet filtering policy is to DROP packets coming in to this host or forwarded, but outgoing connectivity is normally not blocked.
 
 ### Traffic destined to host
 
@@ -134,8 +136,8 @@ To block traffic, a client has to be a member of an ipset for an ipset designate
 
 Create the ipsets used for remote services to be filtered
 ```bash
-sudo ipset create gaming-servers hash:ip -exist timeout 90 
-sudo ipset create video-servers hash:ip -exist timeout 90
+sudo ipset -exist create gaming-servers hash:ip timeout 90 
+sudo ipset -exist create video-servers hash:ip timeout 90
 ```
 
 Create the ipsets used for local hosts to be filtered
@@ -180,25 +182,17 @@ Commit the changes
 COMMIT
 ```
 
-### NAT outbound traffic
+### Rest of tables no-op
+Do not NAT traffic, reset all the other tables
 
-Do not NAT traffic
 ```append-file:rules.v4
 *nat
 :PREROUTING ACCEPT [0:0]
 :INPUT ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
 :POSTROUTING ACCEPT [0:0]
-```
-
-Commit the changes
-```append-file:rules.v4
 COMMIT
-```
 
-### Rest of tables no-op
-Reset all the other tables
-```append-file:rules.v4
 *raw
 :PREROUTING ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
@@ -262,8 +256,14 @@ sudo iptables-restore -t rules.v4
 sudo ip6tables-restore -t rules.v6
 ```
 
-Load the rules (ubuntu specific service name)
+Install the rules
+```bash
+sudo cp rules.v4 /etc/iptables/
+sudo cp rules.v6 /etc/iptables/
 ```
+
+Load the rules (ubuntu specific service name)
+```bash
 sudo service netfilter-persistent reload
 ```
 
