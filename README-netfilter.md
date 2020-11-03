@@ -31,7 +31,7 @@ Because this netfilter is not acting as a gateway, there are two ways that the n
 
 The ability to physically move the cable to bypass the filter makes it simple for someone without networking knowledge to handle a failure of the netfilter.
 
-New connections destined for this host is firewalled except for basic ping and ssh, but outbound from this host is open.  Filtering will block new and existing connections inbound and outbound, otherwise it will forward all packets to the upstream gateway, and forward return traffic from the upstream gateway only for established connections.  New connections inbound will be blocked.
+New connections destined for this host are firewalled except for basic ping and ssh, but outbound from this host is open.  Filtering will block new and existing connections inbound and outbound, otherwise it will forward all packets to the upstream gateway, and forward return traffic from the upstream gateway only for established connections.  New connections inbound will be blocked.
   
 Filtering is based on resolving a list of hostnames from a config file and configuring iptables rules.  The set of resolved IPs for each host expires after 5 minutes, and the config file is checked for updates every 30 seconds.  An iptables ipset is updated if the list of IPs has changed.  Problems with lookups will eventually not filter traffic.
 
@@ -59,7 +59,7 @@ This will enable the module, load it on boot, and configure it to send bridged I
 ```bash
 echo Installing and configuring br_netfilter kernel module to filter VLAN tagged IP traffic on bridges
 sudo modprobe br_netfilter
-echo "install br_netfilter" | tee -a /etc/modprobe.d/br_netfilter > /dev/null
+echo "install br_netfilter" | sudo tee -a /etc/modprobe.d/br_netfilter > /dev/null
 sudo sysctl -w net.bridge.bridge-nf-call-iptables=1
 sudo sysctl -w net.bridge.bridge-nf-filter-vlan-tagged=1
 echo "net.bridge.bridge-nf-call-iptables = 1" | sudo tee -a /etc/sysctl.d/99-bridge-netfilter.conf
@@ -75,7 +75,7 @@ sudo apt-get install -y iptables-persistent ipset
 
 Create rules.v4
 ```
-rundoc run README-iptables.md
+rundoc run README-netfilter.md
 ```
 
 ## IPV4
@@ -182,18 +182,13 @@ COMMIT
 
 ### NAT outbound traffic
 
-Default is to not NAT traffic
+Do not NAT traffic
 ```append-file:rules.v4
 *nat
 :PREROUTING ACCEPT [0:0]
 :INPUT ACCEPT [0:0]
 :OUTPUT ACCEPT [0:0]
 :POSTROUTING ACCEPT [0:0]
-```
-
-NAT traffic routed to the gateway, as gw doesn't have route back to filtered hosts
-```r-append-file:rules.v4
--A POSTROUTING --destination %:GATEWAY:% -j MASQUERADE
 ```
 
 Commit the changes
