@@ -1,3 +1,11 @@
+```env
+WIFI_SSID=
+WIFI_PASSWORD=
+```
+
+Wireless network
+
+```r-create-file:gateway/wlan0.yaml#files
 network:
     version: 2
     renderer: networkd
@@ -9,5 +17,12 @@ network:
             critical: true
             dhcp4: true
             access-points:
-                "cpnetnew":
-                    password: "cpcrewnet"
+                "%:WIFI_SSID:%":
+                    password: "%:WIFI_PASSWORD:%"
+```
+
+```bash
+pushd "$PIROOT"/etc/netplan
+sudo cp ~1/gateway/wlan0.yaml .
+popd
+```
