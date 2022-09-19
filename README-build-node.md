@@ -31,12 +31,8 @@ cd build-node
 . upgrade.sh
 . packages.sh
 . python-packages.sh
-. download-ubuntu.sh
-. verify-device.sh
-. unpack-ubuntu-onto-device.sh
-. mount-ubuntu-from-device.sh
-. copy-files.sh
-. unmount.sh
+. apply-config.sh
+sudo systemctl reboot
 ```
 
 ## Prepare Build Node
@@ -71,67 +67,12 @@ pip3 install -u rundoc
 ```
 
 These vars can be edited, they will be included by other scripts
-```create-file:build-node/vars.sh
+```env
 DEVICE=
 WIFI_SSID=
 WIFI_PASSWORD=
 UBUNTU_VERSION=22.04
 UBUNTU_PATCH_VERSION=1
-```
-
-## Download Images
-
-## Verify SD Card
-
-Find SD Card (check is for USB devices: not generic, sorry), and verify no filesystems are on the card.
-
-```create-file:build-node/verify-device.sh
-#!/bin/bash
-# created by README-build-node.md
-set -euo pipefail
-if [[ "${DEVICE:-}" == "" ]]; then
-    DEVICES="$(ls /sys/bus/usb/devices/*/*/host*/target*/*/block)"
-    echo -e "\nFound devices: $DEVICES\n"
-    echo -e "usage: env DEVICE=<device name e.g. sdb> $0\n"
-    exit 1
-fi
-
-foundParts=$(lsblk -J "/dev/$DEVICE" )
-if [[ "$foundParts" == "" ]]; then
-    echo Device $DEVICE is not available
-    exit 1
-fi
-
-foundPartsCount=$(echo "$foundParts" | jq -r ".blockdevices[].children|length")
-if [[ "$foundPartsCount" != "0" ]]; then
-  echo -e "Found filesystems, please umount filesystems and clear SD card partition table:\n$(lsblk --fs /dev/"$DEVICE")"
-  echo -e "\nThis command will wipe the partition table:"
-  echo -e "sudo dd if=/dev/zero of=\"/dev/$DEVICE\" bs=1M count=5\n" 
-  exit 1
-fi
-```
-
-## Install and Mount Ubuntu on SD Card
-
-Unpack ubuntu onto the selected device
-
-```create-file:build-node/unpack-ubuntu-onto-device.sh
-#!/bin/bash
-# created by README-build-node.md
-set -euo pipefail
-xzcat --stdout ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz | pv | sudo dd of=/dev/$DEVICE bs=1M
-sudo partprobe
-```
-
-Mount the boot and root ubuntu partitions from the device
-```create-file:build-node/mount-ubuntu-from-device.sh
-#!/bin/bash
-# created by README-build-node.md
-set -euo pipefail
-PIROOT=/media/$USER/piroot
-sudo mkdir -p /media/$USER/piboot "$PIROOT"
-sudo mount /dev/${DEVICE}1 /media/$USER/piboot
-sudo mount /dev/${DEVICE}2 "$PIROOT"
 ```
 
 ## Create Ubuntu and cloud-init configuration for SD Card
@@ -175,12 +116,6 @@ network:
                     password: "%:WIFI_PASSWORD:%"
 ```
 
-Avoid cloud init from conflicting from our manual setup of netplan
-```create-file:build-node/cloud-init-disable-network-config.cfg
-# created by README-build-node.md
-network: {config: disabled}
-```
-
 Set the hostname
 
 ```create-file:build-node/hostname
@@ -189,35 +124,16 @@ build-node
 ```
 
 
-### SSH
-
-Add ssh keys to a cloud init configuration file
-
-```bash
+## Apply Configuration
+```r-create-file:build-node/apply-config.sh
 #!/bin/bash
 # created by README-build-node.md
 set -euo pipefail
-if ! ls ~/.ssh/id_*.pub; then
-  echo No ssh keys in ~/.ssh
+
+if [[ "%:WIFI_SSID:%" != "" ]]; then
+    sudo cp build-node/wlan0.yaml /etc/netplan/
 fi
-
-pushd build-node
-echo "ssh_authorized_keys:" | tee ssh_authorized_keys.cfg 2>/dev/null
-for f in $(ls ~/.ssh/id_*.pub); do
-  echo "  - $(cat $f)" | tee -a ssh_authorized_keys.cfg 2>/dev/null
-done
-popd
-```
-
-## Copy files to SD Card
-```r-create-file:build-node/copy-files.sh
-#!/bin/bash
-# created by README-build-node.md
-set -euo pipefail
-
-PIROOT=/media/$USER/piroot
-
-pushd "$PIROOT"/etc/netplan
-sudo cp ~1/{wlan0,eth{0,1}}.yaml .
-popd
+sudo cp build-node/{eth{0,1}}.yaml /etc/netplan/
+sudo rm /etc/netplan/99-cloud-init.yaml
+sudo cp build-node/hostname /etc/
 ```
