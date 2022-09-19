@@ -62,7 +62,7 @@ Then python packages will be installed in python-packages.sh
 #!/bin/bash
 # created by README-build-node.md
 set -e
-pip3 install -u rundoc
+pip3 install --user rundoc
 ```
 
 These vars can be edited, they will be included by other scripts
@@ -130,9 +130,9 @@ build-node
 set -euo pipefail
 
 if [[ "%:WIFI_SSID:%" != "" ]]; then
-    sudo cp build-node/wlan0.yaml /etc/netplan/
+    sudo cp wlan0.yaml /etc/netplan/
 fi
-sudo cp build-node/{eth{0,1}}.yaml /etc/netplan/
-sudo rm /etc/netplan/99-cloud-init.yaml
-sudo cp build-node/hostname /etc/
+sudo cp eth0.yaml /etc/netplan/
+sudo rm -f /etc/netplan/99-cloud-init.yaml
+sudo cp hostname /etc/
 ```
