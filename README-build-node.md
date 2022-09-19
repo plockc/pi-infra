@@ -1,6 +1,6 @@
 # Creating Build Node
 
-The build node can be used to create SD cards for the infra gateway along with images.  The gateway will be a firewall + caching proxy + netboot server.  The build node will have some development tools installed, and can be a desktop.
+The build node can be used to create SD cards for the infra gateway.  The gateway can be created with README-gateway.md and will be a firewall + caching proxy + netboot server.  The build node will have some development tools installed, and can be a desktop.
 
 First install ubuntu onto the SD Card using the [Raspberry Pi Imager](https://www.raspberrypi.com/software).  Choose "Other general-purpose OS" then "Ubuntu" then the latest "Ubuntu Server" or "Ubuntu Desktop" LTS, which will work on a number of Raspberry Pis.
 
@@ -18,7 +18,7 @@ scp build-node build-node-ip:
 Update vars.sh on the build node before running setup.sh:
 
 ```
-(cd build-node && ./setup.sh)
+(cd build-node && bash setup.sh)
 ```
 
 setup.sh will run a series of scripts:
@@ -27,6 +27,7 @@ setup.sh will run a series of scripts:
 #!/bin/bash
 # created by README-build-node.md
 set -euo pipefail
+ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
 . upgrade.sh
 . packages.sh
 . python-packages.sh
@@ -53,7 +54,8 @@ Then packages.sh will install ubuntu packages and snaps in packages.sh
 # created by README-build-node.md
 set -e
 sudo apt install -y silversearcher-ag make gcc rng-tools
-sudo snap install --classic nvim go
+sudo snap install --classic nvim
+sudo snap install --classic go
 ```
 
 Then python packages will be installed in python-packages.sh
@@ -67,7 +69,6 @@ pip3 install --user rundoc
 
 These vars can be edited, they will be included by other scripts
 ```env
-DEVICE=
 WIFI_SSID=
 WIFI_PASSWORD=
 UBUNTU_VERSION=22.04
@@ -77,11 +78,9 @@ UBUNTU_PATCH_VERSION=1
 ## Create Ubuntu and cloud-init configuration for SD Card
 
 ### Networking configuration for build-node Ubuntu
-Set up interfaces.  `eth0` is connected to external network, while the pocket network will be on USB on `eth1`, raspberry pi 4 would have much better network speeds than earlier versions over USB (~300Mbit for USB 3.0).
+Set up interfaces.  `eth0` and `wlan0` are connected to external network.
 
-The faster connection is used for external network to allow for the gateway to also be used as home internet gateway.
-
-Interface for external network as DHCP
+Interface for network as DHCP
 ```create-file:build-node/eth0.yaml
 # created by README-build-node.md
 network:
@@ -96,7 +95,7 @@ network:
             link-local: [ipv4]
 ```
 
-Wireless network for external interface, assumes that vars.sh was updated with WIFI SSID and password.
+Wireless network, assumes that vars.sh was updated with WIFI SSID and password.
 
 ```r-create-file:build-node/wlan0.yaml
 # created by README-build-node.md

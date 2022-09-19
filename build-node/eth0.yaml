@@ -1,4 +1,3 @@
-# created by README-build-node.md
 network:
     version: 2
     renderer: networkd
