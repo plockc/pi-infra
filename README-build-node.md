@@ -18,7 +18,7 @@ scp build-node build-node-ip:
 Update vars.sh on the build node before running setup.sh:
 
 ```
-./setup.sh
+(cd build-node && ./setup.sh)
 ```
 
 setup.sh will run a series of scripts:
@@ -27,7 +27,6 @@ setup.sh will run a series of scripts:
 #!/bin/bash
 # created by README-build-node.md
 set -euo pipefail
-cd build-node
 . upgrade.sh
 . packages.sh
 . python-packages.sh
