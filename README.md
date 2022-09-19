@@ -63,6 +63,7 @@ kubernetes external service network: 192.168.11.0/24
 
 internal gateway & DNS: 192.168.8.1
 gateway hostname: gw
+build node: build-node
 domain for internal network: k8s.local
 
 k3os hostnames (`cp` control node, `w` worker node): `pik8s{cp,w}[0-9]+`

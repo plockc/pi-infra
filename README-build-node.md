@@ -57,7 +57,7 @@ Then packages.sh will install ubuntu packages and snaps in packages.sh
 #!/bin/bash
 # created by README-build-node.md
 set -e
-sudo apt install -y silversearcher-ag 
+sudo apt install -y silversearcher-ag make gcc rng-tools
 sudo snap install --classic nvim go
 ```
 
@@ -80,15 +80,6 @@ UBUNTU_PATCH_VERSION=1
 ```
 
 ## Download Images
-
-Then pull ubuntu preinstalled server, which is a compacted complete disk image
-
-```create-file:build-node/download-ubuntu.sh
-#!/bin/bash
-# created by README-build-node.md
-set -euo pipefail
-wget --no-clobber http://cdimage.ubuntu.com/releases/${UBUNTU_VERSION}/release/ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-desktop-arm64+raspi.img.xz
-```
 
 ## Verify SD Card
 
@@ -192,9 +183,9 @@ network: {config: disabled}
 
 Set the hostname
 
-```create-file:build-node/cloud-init-hostname.cfg
+```create-file:build-node/hostname
 # created by README-build-node.md
-hostname: gw
+build-node
 ```
 
 
@@ -218,43 +209,6 @@ done
 popd
 ```
 
-### Ubuntu Packages on SD Card
-
-```create-file:build-node/cloud-init-packages.cfg
-packages:
-  - rng-tools
-  - make
-  - gcc
-  - iptables-persistent
-  - netfilter-persistent
-```
-
-## IP Forwarding Config for build-node
-
-This is not firewalling, it's just forwarding packets with NAT currently.
-
-NAT the forwarded packets, and zero out filtering
-```r-create-file:build-node/rules.v4
-*filter
-:INPUT ACCEPT [0:0]
-:FORWARD ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-COMMIT
-*nat
-:PREROUTING ACCEPT [0:0]
-:INPUT ACCEPT [0:0]
-:OUTPUT ACCEPT [0:0]
-:POSTROUTING ACCEPT [0:0]
--A POSTROUTING -o eth0 -j MASQUERADE
--A POSTROUTING -o wlan0 -j MASQUERADE
-COMMIT
-```
-
-Tell kernel it is OK to forward packets with config to go in /etc/sysctl.d/99--forwarding.conf
-```r-create-file:build-node/forwarding.conf
-net.ipv4.ip_forward=1
-```
-
 ## Copy files to SD Card
 ```r-create-file:build-node/copy-files.sh
 #!/bin/bash
@@ -266,37 +220,4 @@ PIROOT=/media/$USER/piroot
 pushd "$PIROOT"/etc/netplan
 sudo cp ~1/{wlan0,eth{0,1}}.yaml .
 popd
-
-pushd "$PIROOT"/etc/cloud/cloud.cfg.d
-sudo cp ~1/cloud-init-disable-network-config.cfg 99-disable-network-config.cfg
-sudo cp ~1/ssh_authorized_keys.cfg 99-ssh_authorized_keys.cfg
-sudo cp ~1/cloud-init-packages.cfg 99-packages.cfg
-popd
-
-pushd $PIROOT/etc
-sudo cp ~1/resolved.conf systemd/resolved.conf
-sudo cp ~1/cloud-init-hostname.cfg cloud/cloud.cfg.d/99-hostname.cfg
-sudo mkdir -p iptables
-sudo cp ~1/rules.v4 iptables/
-popd
-
-pushd "$PIROOT"/etc/sysctl.d
-sudo cp ~1/forwarding.conf 99-forwarding.conf
-popd
-
-mkdir /var/cache/images
-sudo cp *raspi.img.xz "$PIROOT"/var/cache/images/
-```
-
-## Unmount SD Card
-
-```r-create-file:build-node/unmount.sh
-#!/bin/bash
-# created by README-build-node.md
-set -euo pipefail
-sync
-sudo umount /dev/${DEVICE}1 /dev/${DEVICE}2
-sudo eject /dev/${DEVICE}
-
-echo Completed!
 ```
