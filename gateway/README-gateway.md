@@ -70,6 +70,9 @@ echo DNSStubListener=no
 # created by README-gateway.md
 set -euo pipefail
 
+export DEBIAN_FRONTEND=noninteractive
+echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
+echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
 sudo apt install -y dnsmasq rng-tools iptables-persistent netfilter-persistent
 ```
 
@@ -100,11 +103,11 @@ Copy the configuration files to mounted ubuntu filesystem, enable forwarding, an
 # created by README-gateway.md
 set -euo pipefail
 
-hostname gw
+sudo hostname gw
 pushd /etc
-sudo cp eth1.yaml netplan/
+sudo cp ~1/eth1.yaml netplan/
 sudo cp ~1/resolved.conf systemd/resolved.conf
-sudo cp ~1/cloud-init/sd-card-hostname hostname
+sudo cp ~1/hostname hostname
 echo "net.ipv4.ip_forward = 1" > sysctl.conf.d/99-enabled-fowarding.conf
 sudo mkdir -p iptables
 sudo cp ~1/rules.v4 iptables/
