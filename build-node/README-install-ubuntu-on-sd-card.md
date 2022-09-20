@@ -49,8 +49,8 @@ Pull ubuntu preinstalled server, which is a compacted complete disk image
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
-. install-vars.sh
-FILE=ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-desktop-arm64+raspi.img.xz
+. vars.sh
+FILE=ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-server-arm64+raspi.img.xz
 if [ ! -e $FILE ]; then
     wget --no-clobber http://cdimage.ubuntu.com/releases/${UBUNTU_VERSION}/release/$FILE
 fi
@@ -60,29 +60,29 @@ fi
 
 Find SD Card (check is for USB devices: not generic, sorry), and verify no filesystems are on the card.
 
-```create-file:verify-device.sh
+```r-create-file:verify-device.sh
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
-. install-vars.sh
-if [[ "${DEVICE:-}" == "" ]]; then
+. vars.sh
+if [[ "%:DEVICE:%" == "" ]]; then
     DEVICES="$(ls /sys/bus/usb/devices/*/*/host*/target*/*/block)"
     echo -e "\nFound devices: $DEVICES\n"
     echo -e "usage: env DEVICE=<device name e.g. sdb> $0\n"
     exit 1
 fi
 
-foundParts=$(lsblk -J "/dev/$DEVICE" )
+foundParts=$(lsblk -J "/dev/%:DEVICE:%" )
 if [[ "$foundParts" == "" ]]; then
-    echo Device $DEVICE is not available
+    echo Device %:DEVICE:% is not available
     exit 1
 fi
 
 foundPartsCount=$(echo "$foundParts" | jq -r ".blockdevices[].children|length")
 if [[ "$foundPartsCount" != "0" ]]; then
-  echo -e "Found filesystems, please umount filesystems and clear SD card partition table:\n$(lsblk --fs /dev/"$DEVICE")"
+  echo -e "Found filesystems, please umount filesystems and clear SD card partition table:\n$(lsblk --fs /dev/%:DEVICE:%)"
   echo -e "\nThis command will wipe the partition table:"
-  echo -e "sudo dd if=/dev/zero of=\"/dev/$DEVICE\" bs=1M count=5\n" 
+  echo -e "sudo dd if=/dev/zero of=\"/dev/%:DEVICE:%\" bs=1M count=5\n" 
   exit 1
 fi
 ```
@@ -91,27 +91,28 @@ fi
 
 Unpack ubuntu onto the selected device
 
-```create-file:unpack-ubuntu-onto-device.sh
+```r-create-file:unpack-ubuntu-onto-device.sh
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
-. install-vars.sh
 
-xzcat --stdout ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz | pv | sudo dd of=/dev/$DEVICE bs=1M
+. vars.sh
+FILE=ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-server-arm64+raspi.img.xz
+xzcat --stdout $FILE | pv | sudo dd of=/dev/%:DEVICE:% bs=1M
 sudo partprobe
 ```
 
 Mount the boot and root ubuntu partitions from the device
-```create-file:mount-ubuntu-from-device.sh
+```r-create-file:mount-ubuntu-from-device.sh
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
-. install-vars.sh
+. vars.sh
 
 PIROOT=/media/$USER/piroot
 sudo mkdir -p /media/$USER/piboot "$PIROOT"
-sudo mount /dev/${DEVICE}1 /media/$USER/piboot
-sudo mount /dev/${DEVICE}2 "$PIROOT"
+sudo mount /dev/%:DEVICE:%1 /media/$USER/piboot
+sudo mount /dev/%:DEVICE:%2 "$PIROOT"
 ```
 
 ## Networking Cloud-init config
@@ -119,17 +120,36 @@ sudo mount /dev/${DEVICE}2 "$PIROOT"
 Set up interfaces. `eth0` is connected to external network.
 
 Interface for external network as DHCP
-```create-file:eth0.yaml
+```create-file:sd-card-eth0.yaml
 network:
     version: 2
-    renderer: networkd
+    #renderer: networkd
     ethernets:
-        eth1:
+        eth0:
             optional: true
             dhcp4: true
             # do not release IP address
             critical: true
             link-local: [ipv4]
+```
+
+Wireless network, assumes that vars.sh was updated with WIFI SSID and password.
+
+```r-create-file:build-node/wlan0.yaml#template-with-vars
+# created by README-build-node.md
+network:
+    version: 2
+    #renderer: networkd
+    wifis:
+        wlan0:
+            # allow OS to start (while still building boot sequeuence)
+            optional: true
+            # do not release IP address
+            critical: true
+            dhcp4: true
+            access-points:
+                "%:WIFI_SSID:%":
+                    password: "%:WIFI_PASSWORD:%"
 ```
 
 Avoid cloud init from conflicting from our manual setup of netplan
@@ -171,7 +191,7 @@ popd
 ## Copy Configuration
 
 Copy the configuration files
-```create-file:apply-config-to-sd-card.sh
+```r-create-file:apply-config-to-sd-card.sh
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
@@ -185,7 +205,10 @@ sudo cp ~1/cloud-init-gw-hostname 99-hostname.cfg
 popd
 
 pushd "$PIROOT"/etc
-sudo cp ~1/eth0.yaml netplan/
+if [[ "${WIFI_SSID:-}" != "" ]]; then
+    sudo cp sd-install-wlan0.yaml /etc/netplan/
+fi
+sudo cp ~1/sd-card-eth0.yaml netplan/
 sudo cp ~1/resolved.conf systemd/
 popd
 ```
@@ -199,13 +222,23 @@ Unmount the sd card partitions
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
-. install-vars.sh
+. vars.sh
 
 sync
-sudo umount /dev/${DEVICE}1 /dev/${DEVICE}2
-sudo eject /dev/${DEVICE}
+sudo umount /dev/%:DEVICE:%1 /dev/%:DEVICE:%2
+sudo eject /dev/%:DEVICE:%
 
 echo Completed!
+```
+
+Rerun rundoc but with vars.sh for tagged templates
+```
+#!/bin/bash
+# created by README-install-ubuntu-on-sd-card.md
+set -euo pipefail
+. vars.sh
+
+rundoc run -t template-with-vars README-install-ubuntu-on-sd-card.md
 ```
 
 ## Troubleshooting
