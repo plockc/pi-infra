@@ -59,8 +59,9 @@ gw
 ```
 
 Turn off systemd DNS stub so dnsmasq can listen 
-```create-file:resolved.conf
-echo DNSStubListener=no
+```create-file:disable-stub-listener.conf
+[Resolve]
+DNSStubListener=no
 ```
 
 ## Install Packages
@@ -73,7 +74,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
-sudo apt install -y dnsmasq rng-tools iptables-persistent netfilter-persistent
+sudo apt install -y rng-tools iptables-persistent netfilter-persistent
 ```
 
 ## IP Forwarding
@@ -104,11 +105,10 @@ Copy the configuration files to mounted ubuntu filesystem, enable forwarding, an
 set -euo pipefail
 
 sudo hostname gw
+echo "net.ipv4.ip_forward = 1" | sudo tee /etc/sysctl.d/99-enabled-fowarding.conf > /dev/null
 pushd /etc
 sudo cp ~1/eth1.yaml netplan/
-sudo cp ~1/resolved.conf systemd/resolved.conf
 sudo cp ~1/hostname hostname
-echo "net.ipv4.ip_forward = 1" > sysctl.conf.d/99-enabled-fowarding.conf
 sudo mkdir -p iptables
 sudo cp ~1/rules.v4 iptables/
 popd
@@ -161,8 +161,11 @@ Copy the configuration files
 set -euo pipefail
 
 pushd /etc
+sudo cp ~1/resolved.conf systemd/resolved.conf
 sudo cp ~1/dnsmasq-pocket.conf dnsmasq.d/pocket
 sudo cp ~1/dnsmasq-hosts hosts.dnsmasq
 sudo cp ~1/dnsmasq-resolv.conf resolv.dnsmasq.conf
 popd
+
+sudo apt install -y dnsmasq
 ```
