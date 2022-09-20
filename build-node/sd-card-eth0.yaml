@@ -1,8 +1,8 @@
 network:
     version: 2
-    renderer: networkd
+    #renderer: networkd
     ethernets:
-        eth1:
+        eth0:
             optional: true
             dhcp4: true
             # do not release IP address

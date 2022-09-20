@@ -1,7 +1,7 @@
 # created by README-build-node.md
 network:
     version: 2
-    renderer: networkd
+    #renderer: networkd
     wifis:
         wlan0:
             # allow OS to start (while still building boot sequeuence)

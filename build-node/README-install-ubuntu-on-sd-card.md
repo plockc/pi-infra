@@ -19,12 +19,9 @@ If DEVICE is empty, then `verify-device.sh` will suggest USB block devices that 
 
 Note: This file will be overwritten when rerunning rundoc.
 
-```r-create-file:install-vars.sh#files
+```env
 DEVICE=sda
-WIFI_SSID=
-WIFI_PASSWORD=
-UBUNTU_VERSION=22.04
-UBUNTU_PATCH_VERSION=1
+NEW_HOSTNAME=unnamed
 ```
 
 ## Install
@@ -36,6 +33,7 @@ set -euo pipefail
 . download-ubuntu.sh
 . verify-device.sh
 . unpack-ubuntu-onto-device.sh
+. cloud-init-ssh-authorized-keys.sh
 . mount-ubuntu-from-device.sh
 . apply-config-to-sd-card.sh
 . unmount.sh
@@ -135,7 +133,7 @@ network:
 
 Wireless network, assumes that vars.sh was updated with WIFI SSID and password.
 
-```r-create-file:build-node/wlan0.yaml#template-with-vars
+```r-create-file:sd-card-wlan0.yaml#template-with-vars
 # created by README-build-node.md
 network:
     version: 2
@@ -159,8 +157,8 @@ network: {config: disabled}
 
 Set the cloud-init hostname
 
-```create-file:cloud-init-gw-hostname.cfg
-hostname: gw
+```r-create-file:cloud-init-hostname.cfg#template-with-vars
+hostname: %:NEW_HOSTNAME:%
 ```
 
 Turn off systemd DNS stub so dnsmasq can listen 
@@ -172,7 +170,7 @@ echo DNSStubListener=no
 
 Add ssh keys to a cloud init configuration file
 
-```create-file:cloud-init-ssh-authorized-keys.cfg
+```create-file:cloud-init-ssh-authorized-keys.sh
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
@@ -181,9 +179,9 @@ if ! ls ~/.ssh/id_*.pub; then
 fi
 
 pushd build-node
-echo "ssh_authorized_keys:" | tee ssh_authorized_keys.cfg 2>/dev/null
+echo "ssh_authorized_keys:" | tee cloud-init-ssh-authorized-keys.cfg 2>/dev/null
 for f in $(ls ~/.ssh/id_*.pub); do
-  echo "  - $(cat $f)" | tee -a ssh_authorized_keys.cfg 2>/dev/null
+  echo "  - $(cat $f)" | tee -a cloud-init-ssh-authorized-keys.cfg 2>/dev/null
 done
 popd
 ```
@@ -195,18 +193,19 @@ Copy the configuration files
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
+. vars.sh
 
 PIROOT=/media/$USER/piroot
 
 pushd "$PIROOT"/etc/cloud/cloud.cfg.d
-sudo cp ~1/cloud-init-ssh_authorized_keys.cfg 99-ssh_authorized_keys.cfg
+sudo cp ~1/cloud-init-ssh-authorized-keys.cfg 99-ssh-authorized-keys.cfg
 sudo cp ~1/cloud-init-disable-network-config.cfg 99-disable-network-config.cfg
-sudo cp ~1/cloud-init-gw-hostname 99-hostname.cfg
+sudo cp ~1/cloud-init-hostname 99-hostname.cfg
 popd
 
 pushd "$PIROOT"/etc
 if [[ "${WIFI_SSID:-}" != "" ]]; then
-    sudo cp sd-install-wlan0.yaml /etc/netplan/
+    sudo cp sd-card-wlan0.yaml /etc/netplan/
 fi
 sudo cp ~1/sd-card-eth0.yaml netplan/
 sudo cp ~1/resolved.conf systemd/
