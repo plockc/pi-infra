@@ -12,16 +12,28 @@ The faster connection is used for external network to allow for the gateway to a
 
 Install rundoc, execute rundoc to extract the script embedded in this README, edit configuration in vars.sh, the run the gateway install script.
 
-```usage
+```
 pip3 install rundoc
 rundoc run README-gateway.md
 bash gateway.sh
 ```
 
+Running gateway.sh will run a series of scripts:
+```create-file:gateway.sh
+#!/bin/bash
+# created by README-gateway.md
+set -euo pipefail
+
+. packages.sh
+. apply-config.sh
+. dnsmasq.sh
+```
+
 ## Network Interfaces
 
 USB dongle Ethernet for internal network, it's assumed that eth0 and wlan are already created.
-```create-file:gateway/eth1.yaml#files
+```create-file:eth1.yaml
+# created by README-gateway.md
 network:
     version: 2
     renderer: networkd
@@ -38,26 +50,26 @@ network:
 
 Copy the network files (adjust as needed prior to running gateway.sh)
 
-```bash
-sudo cp eth1.yaml /etc/netplan/
-```
-
 ## Hostname resolution
 
 Set the hostname
 
-```create-file:gateway-hostname
+```create-file:hostname
 gw
 ```
 
 Turn off systemd DNS stub so dnsmasq can listen 
-```create-file:gateway-resolved.conf
+```create-file:resolved.conf
 echo DNSStubListener=no
 ```
 
 ## Install Packages
 
-```create-file:gateway-packages.sh
+```create-file:packages.sh
+#!/bin/bash
+# created by README-gateway.md
+set -euo pipefail
+
 sudo apt install -y dnsmasq rng-tools iptables-persistent netfilter-persistent
 ```
 
@@ -66,7 +78,7 @@ sudo apt install -y dnsmasq rng-tools iptables-persistent netfilter-persistent
 This is not firewalling, it's just forwarding packets with NAT currently.
 
 NAT the forwarded packets that go to external networks
-```create-file:gateway-rules.v4#files
+```create-file:rules.v4
 *filter
 :INPUT ACCEPT [0:0]
 :FORWARD ACCEPT [0:0]
@@ -83,13 +95,19 @@ COMMIT
 ```
 
 Copy the configuration files to mounted ubuntu filesystem, enable forwarding, and have iptables configuration loaded on startup.
-```create-file:apply-gateway-config.sh
+```create-file:apply-config.sh
+#!/bin/bash
+# created by README-gateway.md
+set -euo pipefail
+
+hostname gw
 pushd /etc
-sudo cp ~1/gateway/resolved.conf systemd/resolved.conf
-sudo cp ~1/gateway/cloud-init/sd-card-hostname hostname
+sudo cp eth1.yaml netplan/
+sudo cp ~1/resolved.conf systemd/resolved.conf
+sudo cp ~1/cloud-init/sd-card-hostname hostname
 echo "net.ipv4.ip_forward = 1" > sysctl.conf.d/99-enabled-fowarding.conf
 sudo mkdir -p iptables
-sudo cp ~1/gateway-rules.v4 iptables/rules.v4
+sudo cp ~1/rules.v4 iptables/
 popd
 ```
 
@@ -98,7 +116,7 @@ popd
 
 DNS and DHCP will be configured on eth1 for the pocket network, and provide a DNS server on eth0 and wlan0 to optionally provide DNS for the external network.
 
-```create-file:gateway-dnsmasq-pocket.conf
+```create-file:dnsmasq-pocket.conf
 listen-address=192.168.8.1
 # default is 150
 cache-size=1000
@@ -110,7 +128,7 @@ no-dhcp-interface=wlan0
 #dhcp-option=6,192.168.8.1
 # static route
 dhcp-option=121,0.0.0.0/0,192.168.8.1
-dhcp-range=192.168.3.100,192.168.3.250,100d
+dhcp-range=192.168.8.100,192.168.8.250,100d
 log-dhcp
 # do not forward requests for non-routed IPs
 bogus-priv
@@ -123,23 +141,25 @@ resolv-file=/etc/resolv.dnsmasq.conf
 addn-hosts=/etc/hosts.dnsmasq
 ```
 
-```create-file:gateway-dnsmasq-hosts
+```create-file:dnsmasq-hosts
 192.168.8.1 gw
 ```
 
-```create-file:gateway-dnsmasq-resolv.conf
+```create-file:dnsmasq-resolv.conf
 nameserver 1.1.1.1
 options edns0
-search k8s.local
+#search k8s.local
 ```
 
 Copy the configuration files
-```bash
+```create-file:dnsmasq.sh
+#!/bin/bash
+# created by README-gateway.md
+set -euo pipefail
+
 pushd /etc
-sudo cp ~1/gateway-dnsmasq-pocket.conf dnsmasq.d/pocket
-sudo cp ~1/gateway-dnsmasq-hosts hosts.dnsmasq
-sudo cp ~1/gateway-dnsmasq-resolv.conf resolv.dnsmasq.conf
+sudo cp ~1/dnsmasq-pocket.conf dnsmasq.d/pocket
+sudo cp ~1/dnsmasq-hosts hosts.dnsmasq
+sudo cp ~1/dnsmasq-resolv.conf resolv.dnsmasq.conf
 popd
 ```
-
-
