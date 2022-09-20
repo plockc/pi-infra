@@ -48,7 +48,7 @@ Pull ubuntu preinstalled server, which is a compacted complete disk image
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
 . vars.sh
-FILE=ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-server-arm64+raspi.img.xz
+FILE=ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-server-armhf+raspi.img.xz
 if [ ! -e $FILE ]; then
     wget --no-clobber http://cdimage.ubuntu.com/releases/${UBUNTU_VERSION}/release/$FILE
 fi
@@ -95,7 +95,7 @@ Unpack ubuntu onto the selected device
 set -euo pipefail
 
 . vars.sh
-FILE=ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-server-arm64+raspi.img.xz
+FILE=ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-server-armhf+raspi.img.xz
 xzcat --stdout $FILE | pv | sudo dd of=/dev/%:DEVICE:% bs=1M
 sudo partprobe
 ```
@@ -119,6 +119,7 @@ Set up interfaces. `eth0` is connected to external network.
 
 Interface for external network as DHCP
 ```create-file:sd-card-eth0.yaml
+# created by README-install-ubuntu-on-sd-card.md
 network:
     version: 2
     #renderer: networkd
@@ -134,7 +135,7 @@ network:
 Wireless network, assumes that vars.sh was updated with WIFI SSID and password.
 
 ```r-create-file:sd-card-wlan0.yaml#template-with-vars
-# created by README-build-node.md
+# created by README-install-ubuntu-on-sd-card.md
 network:
     version: 2
     #renderer: networkd
@@ -152,12 +153,14 @@ network:
 
 Avoid cloud init from conflicting from our manual setup of netplan
 ```create-file:cloud-init-disable-network-config.cfg
+# created by README-install-ubuntu-on-sd-card.md
 network: {config: disabled}
 ```
 
 Set the cloud-init hostname
 
 ```r-create-file:cloud-init-hostname.cfg#template-with-vars
+# created by README-install-ubuntu-on-sd-card.md
 hostname: %:NEW_HOSTNAME:%
 ```
 
@@ -178,12 +181,10 @@ if ! ls ~/.ssh/id_*.pub; then
   echo No ssh keys in ~/.ssh
 fi
 
-pushd build-node
 echo "ssh_authorized_keys:" | tee cloud-init-ssh-authorized-keys.cfg 2>/dev/null
 for f in $(ls ~/.ssh/id_*.pub); do
   echo "  - $(cat $f)" | tee -a cloud-init-ssh-authorized-keys.cfg 2>/dev/null
 done
-popd
 ```
 
 ## Copy Configuration
@@ -200,7 +201,7 @@ PIROOT=/media/$USER/piroot
 pushd "$PIROOT"/etc/cloud/cloud.cfg.d
 sudo cp ~1/cloud-init-ssh-authorized-keys.cfg 99-ssh-authorized-keys.cfg
 sudo cp ~1/cloud-init-disable-network-config.cfg 99-disable-network-config.cfg
-sudo cp ~1/cloud-init-hostname 99-hostname.cfg
+sudo cp ~1/cloud-init-hostname.cfg 99-hostname.cfg
 popd
 
 pushd "$PIROOT"/etc
