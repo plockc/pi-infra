@@ -26,7 +26,7 @@ setup.sh will run a series of scripts:
 #!/bin/bash
 # created by README-build-node.md
 set -euo pipefail
-ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
+. sshkey.sh
 . upgrade.sh
 . packages.sh
 . python-packages.sh
@@ -37,6 +37,15 @@ sudo systemctl reboot
 ## Prepare Build Node
 
 The first script is upgrade.sh, it updates the package cache, upgrades the system. Note: security updates will no longer be automatically applied.
+
+```create-file:build-node/sshkey.sh
+#!/bin/bash
+# created by README-build-node.md
+set -e
+if [ ! -e ~/.ssh/id_ed25519 ]; then
+    ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
+fi
+```
 
 ```create-file:build-node/upgrade.sh
 #!/bin/bash

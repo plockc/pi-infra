@@ -5,13 +5,49 @@ tftp-root=/tftpboot
 pxe-service=0,"Raspberry Pi Boot   "
 ```
 
-## Raspi Specific Boot
+These vars can be edited adding `-a` arg to `rundoc run`
+
+```env
+UBUNTU_VERSION=22.04
+UBUNTU_PATCH_VERSION=1
+```
+
+## Raspi Specific NetBoot
+
+
+```create-file:setup-netboot.sh
+#!/bin/bash
+# created by README-netboot.md
+set -euo pipefail
+. get-firmware.sh
+. download-ubuntu.sh
+```
 
 #### Firmware and Kernel
 
-Also in the downloaded firmware there is a kernel that can work for netboot as it has statically compiled device drivers
+Pull down the raspberry pi firmware, included there is a kernel that can work for netboot as it has statically compiled device drivers
 
-```bash
+```create-file:get-firmware.sh
+#!/bin/bash
+# created by README-netboot.md
+set -euo pipefail
+
+FIRMWARE_ARCHIVE=firmware_master.tgz
+[[ ! -f "$FIRMWARE_ARCHIVE" ]] && wget -O "$FIRMWARE_ARCHIVE" https://github.com/raspberrypi/firmware/archive/master.tar.gz
+```
+
+```create-file:download-ubuntu.sh
+#!/bin/bash
+# created by README-netboot.md
+set -euo pipefail
+. vars.sh
+FILE=ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-server-armhf+raspi.img.xz
+if [ ! -e $FILE ]; then
+    wget --no-clobber http://cdimage.ubuntu.com/releases/${UBUNTU_VERSION}/release/$FILE
+fi
+```
+
+```create-file 
 pushd "$PIROOT"
 sudo mkdir -p tftpboot
 sudo tar -C tftpboot  --strip-components=2 -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot
@@ -35,7 +71,6 @@ popd
 
 ## Installer
 
-
 The installer is composed of two parts, a kernel and a initramfs which is a filesystem loaded into ram instead of read off disk.  Both of these will be delivered over tftp during netboot.  The initramfs filesystem will be binaries provided by busybox, as it only needs limited features to perform the installation.
 
 ### Busybox
@@ -47,6 +82,12 @@ This is the beginning of a script run at first boot to unpack the archive in /ro
 #!/bin/bash
 
 set -euo pipefail
+
+version=1.34.1
+BUSYBOX=busybox-$version.tar.bz2
+wget --no-clobber "https://www.busybox.net/downloads/$BUSYBOX"
+tar --bzip2 -xf "$BUSYBOX"
+tar -zcf busybox.tgz busybox-$version
 
 mkdir -p busybox
 tar -C busybox --strip-components 1 -zxvf /root/busybox.tgz

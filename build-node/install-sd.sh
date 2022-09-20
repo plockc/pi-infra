@@ -4,7 +4,7 @@ set -euo pipefail
 . download-ubuntu.sh
 . verify-device.sh
 . unpack-ubuntu-onto-device.sh
-. cloud-init-ssh-authorized-keys.sh
+. cloud-init-ssh.sh
 . mount-ubuntu-from-device.sh
 . apply-config-to-sd-card.sh
 . unmount.sh

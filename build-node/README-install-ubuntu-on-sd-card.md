@@ -33,7 +33,7 @@ set -euo pipefail
 . download-ubuntu.sh
 . verify-device.sh
 . unpack-ubuntu-onto-device.sh
-. cloud-init-ssh-authorized-keys.sh
+. cloud-init-ssh.sh
 . mount-ubuntu-from-device.sh
 . apply-config-to-sd-card.sh
 . unmount.sh
@@ -164,16 +164,11 @@ Set the cloud-init hostname
 hostname: %:NEW_HOSTNAME:%
 ```
 
-Turn off systemd DNS stub so dnsmasq can listen 
-```create-file:resolved.conf
-echo DNSStubListener=no
-```
-
 ## SSH
 
 Add ssh keys to a cloud init configuration file
 
-```create-file:cloud-init-ssh-authorized-keys.sh
+```create-file:cloud-init-ssh.sh
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
 set -euo pipefail
@@ -181,12 +176,12 @@ if ! ls ~/.ssh/id_*.pub; then
   echo No ssh keys in ~/.ssh
 fi
 
-ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
-
-echo "ssh_authorized_keys:" | tee cloud-init-ssh-authorized-keys.cfg 2>/dev/null
+echo "#cloud_config" | tee cloud-init-ssh-authorized-keys.cfg 2>/dev/null
+echo "ssh_authorized_keys:" | tee -a cloud-init-ssh.cfg 2>/dev/null
 for f in $(ls ~/.ssh/id_*.pub); do
-  echo "  - $(cat $f)" | tee -a cloud-init-ssh-authorized-keys.cfg 2>/dev/null
+  echo "  - $(cat $f)" | tee -a cloud-init-ssh.cfg 2>/dev/null
 done
+echo 'runcmd: [ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519]' > cloud-init-ssh.cfg
 ```
 
 ## Copy Configuration
@@ -201,7 +196,7 @@ set -euo pipefail
 PIROOT=/media/$USER/piroot
 
 pushd "$PIROOT"/etc/cloud/cloud.cfg.d
-sudo cp ~1/cloud-init-ssh-authorized-keys.cfg 99-ssh-authorized-keys.cfg
+sudo cp ~1/cloud-init-ssh.cfg 99-ssh.cfg
 sudo cp ~1/cloud-init-disable-network-config.cfg 99-disable-network-config.cfg
 sudo cp ~1/cloud-init-hostname.cfg 99-hostname.cfg
 popd
@@ -211,8 +206,8 @@ if [[ "${WIFI_SSID:-}" != "" ]]; then
     sudo cp sd-card-wlan0.yaml /etc/netplan/
 fi
 sudo cp ~1/sd-card-eth0.yaml netplan/
-sudo cp ~1/resolved.conf systemd/
 popd
+
 ```
 
 

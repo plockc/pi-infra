@@ -161,7 +161,8 @@ Copy the configuration files
 set -euo pipefail
 
 pushd /etc
-sudo cp ~1/resolved.conf systemd/resolved.conf
+sudo mkdir systemd/resolved.conf.d
+sudo cp ~1/disable-stub-listener.conf systemd/resolved.conf.d
 sudo cp ~1/dnsmasq-pocket.conf dnsmasq.d/pocket
 sudo cp ~1/dnsmasq-hosts hosts.dnsmasq
 sudo cp ~1/dnsmasq-resolv.conf resolv.dnsmasq.conf
