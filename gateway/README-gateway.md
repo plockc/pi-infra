@@ -120,7 +120,6 @@ popd
 DNS and DHCP will be configured on eth1 for the pocket network, and provide a DNS server on eth0 and wlan0 to optionally provide DNS for the external network.
 
 ```create-file:dnsmasq-pocket.conf
-listen-address=192.168.8.1
 # default is 150
 cache-size=1000
 no-dhcp-interface=eth0
@@ -154,19 +153,29 @@ options edns0
 #search k8s.local
 ```
 
-Copy the configuration files
+Copy the configuration files. Install dnsmasq, it will fail to start as systemd-resolved is still running.
+
+Restart systemd-resolved to read in the disable configuration for the Stub listener.
+
+Restart dnsmasq to re-attempt binding.
+
 ```create-file:dnsmasq.sh
 #!/bin/bash
 # created by README-gateway.md
 set -euo pipefail
 
 pushd /etc
-sudo mkdir systemd/resolved.conf.d
+sudo mkdir -p systemd/resolved.conf.d
 sudo cp ~1/disable-stub-listener.conf systemd/resolved.conf.d
 sudo cp ~1/dnsmasq-pocket.conf dnsmasq.d/pocket
 sudo cp ~1/dnsmasq-hosts hosts.dnsmasq
 sudo cp ~1/dnsmasq-resolv.conf resolv.dnsmasq.conf
 popd
 
+# 
 sudo apt install -y dnsmasq
+# will stop hostname resolution
+sudo systemctl restart systemd-resolved
+# will restore hostname resolution
+sudo systemctl restart dnsmasq
 ```
