@@ -157,11 +157,11 @@ Avoid cloud init from conflicting from our manual setup of netplan
 network: {config: disabled}
 ```
 
-Set the cloud-init hostname
+Set the hostname
 
-```r-create-file:cloud-init-hostname.cfg#template-with-vars
+```r-create-file:sd-card-hostname#template-with-vars
 # created by README-install-ubuntu-on-sd-card.md
-hostname: %:NEW_HOSTNAME:%
+%:NEW_HOSTNAME:%
 ```
 
 ## SSH
@@ -198,8 +198,9 @@ PIROOT=/media/$USER/piroot
 pushd "$PIROOT"/etc/cloud/cloud.cfg.d
 sudo cp ~1/cloud-init-ssh.cfg 99-ssh.cfg
 sudo cp ~1/cloud-init-disable-network-config.cfg 99-disable-network-config.cfg
-sudo cp ~1/cloud-init-hostname.cfg 99-hostname.cfg
 popd
+
+sudo cp sd-card-hostname /etc/hostname
 
 pushd "$PIROOT"/etc
 if [[ "${WIFI_SSID:-}" != "" ]]; then

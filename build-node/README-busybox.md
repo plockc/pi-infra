@@ -23,5 +23,3 @@ else
 fi
 cp busybox-$BUSYBOX_VERSION/busybox .
 ```
-
-

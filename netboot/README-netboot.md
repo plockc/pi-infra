@@ -1,9 +1,4 @@
-```create-file:dnsmasq-netboot.conf
-domain=k8s.local
-enable-tftp
-tftp-root=/tftpboot
-pxe-service=0,"Raspberry Pi Boot   "
-```
+# Raspi Specific NetBoot
 
 These vars can be edited adding `-a` arg to `rundoc run`
 
@@ -12,20 +7,19 @@ UBUNTU_VERSION=22.04
 UBUNTU_PATCH_VERSION=1
 ```
 
-## Raspi Specific NetBoot
-
-
 ```create-file:setup-netboot.sh
 #!/bin/bash
 # created by README-netboot.md
 set -euo pipefail
-. firmware.sh
 . download-ubuntu.sh
+. firmware.sh
+. initramfs.sh
+. tftp.sh
 ```
 
-#### Download ubuntu 
+### Download ubuntu 
 
-```create-file:download-ubuntu.sh
+```r-create-file:download-ubuntu.sh
 #!/bin/bash
 # created by README-netboot.md
 set -euo pipefail
@@ -34,7 +28,7 @@ FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-armh
 wget --no-clobber http://cdimage.ubuntu.com/releases/%:UBUNTU_VERSION:%/release/$FILE
 ```
 
-#### Firmware and Kernel
+### Firmware and Kernel
 
 Pull down the raspberry pi firmware, included there is a kernel that can work for netboot as it has statically compiled device drivers
 
@@ -49,13 +43,13 @@ FIRMWARE_ARCHIVE=firmware_master.tgz
 
 [[ ! -f "$FIRMWARE_ARCHIVE" ]] && wget -O "$FIRMWARE_ARCHIVE" https://github.com/raspberrypi/firmware/archive/master.tar.gz
 
-sudo mkdir -p /tftpboot
-sudo tar -C /tftpboot  --strip-components=2 -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot
+sudo mkdir -p firmware 
+sudo tar -C firmware  --strip-components=2 -zxf "$FIRMWARE_ARCHIVE" firmware-master/boot
 ```
 
 The config.txt is pulled by Pi, the directive "initramfs" specifies the file name for the initramfs ("initramfs.img", also stored on tftp) and it should immediately follow the kernel, the kernel knows how to find it.
 ```append-file:firmware.sh
-echo "initramfs initramfs.img followkernel" | sudo tee -a /tftpboot/config.txt >/dev/null
+echo "initramfs initramfs.img followkernel" | sudo tee -a config.txt >/dev/null
 ```
 
 
@@ -65,18 +59,6 @@ The installer is composed of two parts, a kernel and a initramfs which is a file
 
 To create the initramfs, a working directory will be created and busybox installation will target the work directory and create symlinks to busybox for all the binaries it replaces.
 
-```append-file:gateway/first-boot/busybox-compile-and-install.sh#files
-mkdir /root/bbroot
-LDFLAGS="--static" make install CONFIG_PREFIX=/root/bbroot
-```
-
-Copy the busybox script and the busybox archive to the sd card so it's available for first boot compile and install.
-
-```bash
-chmod 755 gateway/first-boot/busybox-compile-and-install.sh
-sudo cp busybox.tgz gateway/first-boot/busybox-compile-and-install.sh "$PIROOT/root"
-```
-
 ### gateway first boot to create initramfs
 
 The initramfs sets up networking and does installation within an init script.  Busybox installed an init script, we need to replace it.  The creation of the initramfs is run during first boot of the gateway.
@@ -85,9 +67,10 @@ The initramfs goal is to run an install script.  The install script itself is a 
 
 #### init scripts - configuring DHCP interface
 
-To be able to download the script, networking must be set up.  To set up networking udhcpc runs a script with environment variables as inputs which can be used to configure the interface.
+To be able to download the install script, networking must be set up.  The initramfs uses udhcpc (from busybox) for DHCP. udhcpc after plumbing an interface runs a script with environment variables as inputs which can be used to configure the interface.
 
-```create-file:installer/udhcpc-configure-interface.sh#files
+This script is pointed to in udhcpc config.
+```create-file:udhcpc-configure-interface.sh
 # not starting new shell as the dhcp variables are not exported
 
 # can source this in other scripts
@@ -102,17 +85,13 @@ ip addr add $ip/$mask dev $interface
 ip route add default via $router dev $interface
 echo nameserver $dns > /etc/resolv.conf
 echo Networking is configured
-if tftp -g -l /root/install.sh -r install.sh $router 2>/dev/null; then
-    chmod 744 /root/install.sh
-    echo Install script retrieved
-else
-    echo No install.sh found
-fi
 ```
 
-This init script allows a second init script to behave like a normal script
+The kernel has a configuration for an executable to run and the default is /sbin/init.
+This is the init script, it does some basic setup for the kernel, then runs another script we'll call init2 and include in the initramfs.  The first script's runtime environment is hampered so we'll call a second script after runtime environment is improved and it can behave like a normal script. 
 
-```create-file:installer/init#files
+This is `/sbin/init`:
+```create-file:init
 #!/bin/sh
 set -euo pipefail
 
@@ -124,9 +103,8 @@ mknod /dev/null c 1 3
 exec setsid sh -c 'exec sh </dev/tty1 >/dev/tty1 2>&1 /sbin/init2'
 ```
 
-This script downloads and installs the install script.  
-
-```create-file:installer/init2#files
+This is `/sbin/init2`, it will bring up the primary interface and start udhcpc on that interface.  After the interface is configured, pull down an install script from tftp that knows how to install and configure the OS.
+```create-file:init2
 #!/bin/sh
 
 # keep the kernel messages from appearing on screen
@@ -138,91 +116,80 @@ ip link set dev eth0 up
 
 echo Starting udhcpc
 if udhcpc; then
+    if tftp -g -l /root/install.sh -r install.sh $router 2>/dev/null; then
+        chmod 744 /root/install.sh
+        echo Install script retrieved
+    else
+        echo No install.sh found
+    fi
     [ -x /root/install.sh ] && /root/install.sh && reboot -f
+    echo Failed installation, dropping to ash shell
 fi
 /bin/ash
 ```
 
-Copy the init scripts to sd card so can be used during first boot
-```bash
-sudo cp installer/init{,2} "$PIROOT"/root/
-```
+### create initramfs image
 
-#### create initramfs image
+The initramfs image is a single file representing a complete OS image and filesystem.  The initramfs created here solely does an OS installation.  The pi powers on with netboot enabled, looks for tftp server and pulls config.txt which points to the initramfs created here. will be created from a local directory (we'll use bbroot) that will have the entire filesystem layed out in that directory.  We'll need:
+
+* init scripts
+* busybox binary and links
+* kernel
+
+Create a local directory to be working directory to collect the initramfs filesystem
+```create-file:initramfs.sh
+#!/bin/bash
+# created from README-netboot.md
+set -euo pipefail
+
+mkdir -p bbroot
+pushd bbroot
+```
 
 Prepare all the items needed for the kernel and some glibc libs that can't be statically compiled in busybox for dns.
 
-```create-file:installer/initramfs.sh#files
-#!/bin/bash
-set -euo pipefail
-
-cd /root/bbroot
-mkdir -p {proc,sys,dev,etc,usr/lib,bin,sbin,lib/arm-linux-gnueabihf}
+```append-file:initramfs.sh
+mkdir -p {proc,sys,dev,etc,usr/lib,usr/sbin,usr/bin,bin,sbin,lib/arm-linux-gnueabihf}
 sudo cp /lib/arm-linux-gnueabihf/libnss* lib/arm-linux-gnueabihf/
 ```
 
-overwrite the busybox init script in the initramfs directory and copy init2 and the dhcp configuration script
-```append-file:installer/initramfs.sh#files
+Setup busybox
+```append-file:initramfs.sh
+if [ ! -f ~1/busybox ]; then
+    echo busybox binary is missing, can create it on build node and place in this directory
+fi
+cp ~1/busybox sbin/
+sudo chroot . /sbin/busybox --install
+```
+
+overwrite the busybox init script in the initramfs directory and copy init2 and the dhcp configuration scripts
+```append-file:initramfs.sh
 rm sbin/init
-cp /root/init{,2}  sbin/
+cp ~1/init{,2} sbin/
 mkdir -p usr/share/udhcpc
-cp /root/udhcpc-configure-interface.sh usr/share/udhcpc/default.script
+cp ~1/udhcpc-configure-interface.sh usr/share/udhcpc/default.script
 sudo chmod 744 sbin/init sbin/init2 usr/share/udhcpc/default.script
 ```
 
-Create the initramfs to tftpboot dir
-```append-file:installer/initramfs.sh#files
-find . | cpio -H newc -o | gzip > /tftpboot/initramfs.img
+Create the initramfs from the working directory and place in tftpboot dir
+```append-file:initramfs.sh
+find . | cpio -H newc -o | gzip > ~1/initramfs.img
 ```
 
-```create-file:gateway/first-boot/run-cmd.cfg#files
-runcmd:
-  - /root/busybox-compile-and-install.sh
-  - /root/initramfs.sh
-  # TODO: see why dnsmasq tries to start before interface is ready
-  - systemctl restart dnsmasq
-```
-
-This cloud init fragment will run the first time boot scripts to create the initramfs
-
-Copy the script to create the initramfs to the sd card for reference by first boot
-```bash
-sudo chmod 755 installer/{udhcpc-configure-interface.sh,initramfs.sh}
-sudo cp installer/{udhcpc-configure-interface.sh,initramfs.sh} "$PIROOT"/root/
-```
-
-Copy the cloud init configuration to the sd card
-```bash
-sudo cp gateway/first-boot/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg
-```
+This cloud init fragment will copy all the assets to tftp directory for netboot
 
 Copy the install script, and OS images
-```bash
-pushd "$PIROOT"/tftpboot/
-sudo cp ~1/installer/install.sh .
-sudo cp ~1/ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz .
+```r-create-file:tftp.sh
+#!/bin/bash
+# created by README-netboot.md
+set -euo pipefail
+
+FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-armhf+raspi.img.xz
+
+pushd /tftpboot
+sudo rsync -rc ~1/{install.sh,config.txt,initramfs.img,firmware/*} .
+sudo rsync -c ~/$FILE .
 popd
-```
-
-## Complete
-
-Unmount the sd card partitions
-
-```bash
-sync
-sudo umount /dev/${DEVICE}1 /dev/${DEVICE}2
-sudo eject /dev/${DEVICE}
-
-echo Completed!
-```
-
-## Notes
-
-Manually update network interface configuration by editing files in `/etc/netplan`
-
-```
-sudo netplan generate
-sudo netplan apply
 ```
 
 ## Troubleshooting

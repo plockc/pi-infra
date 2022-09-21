@@ -141,6 +141,12 @@ domain-needed
 # as local system is pointing to dnsmasq
 resolv-file=/etc/resolv.dnsmasq.conf
 addn-hosts=/etc/hosts.dnsmasq
+
+# for netboot and tftp
+domain=k8s.local
+enable-tftp
+tftp-root=/tftpboot
+pxe-service=0,"Raspberry Pi Boot   "
 ```
 
 ```create-file:dnsmasq-hosts
@@ -178,4 +184,6 @@ sudo apt install -y dnsmasq
 sudo systemctl restart systemd-resolved
 # will restore hostname resolution
 sudo systemctl restart dnsmasq
+sudo rm /etc/resolve.conf
+echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf > /dev/null
 ```
