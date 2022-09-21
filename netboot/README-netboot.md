@@ -23,9 +23,22 @@ set -euo pipefail
 . download-ubuntu.sh
 ```
 
+#### Download ubuntu 
+
+```create-file:download-ubuntu.sh
+#!/bin/bash
+# created by README-netboot.md
+set -euo pipefail
+
+FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-armhf+raspi.img.xz
+wget --no-clobber http://cdimage.ubuntu.com/releases/%:UBUNTU_VERSION:%/release/$FILE
+```
+
 #### Firmware and Kernel
 
 Pull down the raspberry pi firmware, included there is a kernel that can work for netboot as it has statically compiled device drivers
+
+#### Firmware
 
 ```create-file:get-firmware.sh
 #!/bin/bash
@@ -36,19 +49,14 @@ FIRMWARE_ARCHIVE=firmware_master.tgz
 [[ ! -f "$FIRMWARE_ARCHIVE" ]] && wget -O "$FIRMWARE_ARCHIVE" https://github.com/raspberrypi/firmware/archive/master.tar.gz
 ```
 
-```create-file:download-ubuntu.sh
+Extract the contents of the "boot" directory of the firmware tarball into the tftpboot directory
+```create-file:prepare-firmware.sh
+pushd "$PIROOT"
 #!/bin/bash
 # created by README-netboot.md
 set -euo pipefail
-. vars.sh
-FILE=ubuntu-${UBUNTU_VERSION}.${UBUNTU_PATCH_VERSION}-preinstalled-server-armhf+raspi.img.xz
-if [ ! -e $FILE ]; then
-    wget --no-clobber http://cdimage.ubuntu.com/releases/${UBUNTU_VERSION}/release/$FILE
-fi
-```
 
-```create-file 
-pushd "$PIROOT"
+PIROOT=/media/$USER/piroot
 sudo mkdir -p tftpboot
 sudo tar -C tftpboot  --strip-components=2 -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot
 popd
@@ -56,13 +64,11 @@ popd
 
 #### Load kernel and initramfs
 
-Loads the initramfs right after the kernel and sets it up so kernel uses it
+The config.txt is pulled by Pi, the directive "initramfs" specifies the file name for the initramfs ("initramfs.img", also stored on tftp) and it should immediately follow the kernel, the kernel knows how to find it.
 ```bash
 pushd "$PIROOT"
 (cat <<EOF
 initramfs initramfs.img followkernel
-framebuffer_width=800
-framebuffer_height=480
 EOF
 ) | sudo tee -a tftpboot/config.txt >/dev/null
 popd
@@ -72,29 +78,6 @@ popd
 ## Installer
 
 The installer is composed of two parts, a kernel and a initramfs which is a filesystem loaded into ram instead of read off disk.  Both of these will be delivered over tftp during netboot.  The initramfs filesystem will be binaries provided by busybox, as it only needs limited features to perform the installation.
-
-### Busybox
-The busybox binary needs to be compiled on the pi to be the correct architecture. Since the local machine is often not a raspi, this will be done as part of first time boot of the raspi gateway and placed into the tftp directory to be available to raspis being booted.
-
-This is the beginning of a script run at first boot to unpack the archive in /root and compile busybox.
-
-```create-file:gateway/first-boot/busybox-compile-and-install.sh#files
-#!/bin/bash
-
-set -euo pipefail
-
-version=1.34.1
-BUSYBOX=busybox-$version.tar.bz2
-wget --no-clobber "https://www.busybox.net/downloads/$BUSYBOX"
-tar --bzip2 -xf "$BUSYBOX"
-tar -zcf busybox.tgz busybox-$version
-
-mkdir -p busybox
-tar -C busybox --strip-components 1 -zxvf /root/busybox.tgz
-cd busybox
-make defconfig
-LDFLAGS="--static" make -j2
-```
 
 To create the initramfs, a working directory will be created and busybox installation will target the work directory and create symlinks to busybox for all the binaries it replaces.
 
