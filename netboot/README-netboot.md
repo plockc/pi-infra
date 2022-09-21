@@ -19,7 +19,7 @@ UBUNTU_PATCH_VERSION=1
 #!/bin/bash
 # created by README-netboot.md
 set -euo pipefail
-. get-firmware.sh
+. firmware.sh
 . download-ubuntu.sh
 ```
 
@@ -38,40 +38,24 @@ wget --no-clobber http://cdimage.ubuntu.com/releases/%:UBUNTU_VERSION:%/release/
 
 Pull down the raspberry pi firmware, included there is a kernel that can work for netboot as it has statically compiled device drivers
 
-#### Firmware
+Extract the contents of the "boot" directory of the firmware tarball into the tftpboot directory
 
-```create-file:get-firmware.sh
+```create-file:firmware.sh
 #!/bin/bash
 # created by README-netboot.md
 set -euo pipefail
 
 FIRMWARE_ARCHIVE=firmware_master.tgz
+
 [[ ! -f "$FIRMWARE_ARCHIVE" ]] && wget -O "$FIRMWARE_ARCHIVE" https://github.com/raspberrypi/firmware/archive/master.tar.gz
+
+sudo mkdir -p /tftpboot
+sudo tar -C /tftpboot  --strip-components=2 -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot
 ```
-
-Extract the contents of the "boot" directory of the firmware tarball into the tftpboot directory
-```create-file:prepare-firmware.sh
-pushd "$PIROOT"
-#!/bin/bash
-# created by README-netboot.md
-set -euo pipefail
-
-PIROOT=/media/$USER/piroot
-sudo mkdir -p tftpboot
-sudo tar -C tftpboot  --strip-components=2 -zxf ~1/"$FIRMWARE_ARCHIVE" firmware-master/boot
-popd
-```
-
-#### Load kernel and initramfs
 
 The config.txt is pulled by Pi, the directive "initramfs" specifies the file name for the initramfs ("initramfs.img", also stored on tftp) and it should immediately follow the kernel, the kernel knows how to find it.
-```bash
-pushd "$PIROOT"
-(cat <<EOF
-initramfs initramfs.img followkernel
-EOF
-) | sudo tee -a tftpboot/config.txt >/dev/null
-popd
+```append-file:firmware.sh
+echo "initramfs initramfs.img followkernel" | sudo tee -a /tftpboot/config.txt >/dev/null
 ```
 
 
@@ -212,44 +196,6 @@ Copy the cloud init configuration to the sd card
 sudo cp gateway/first-boot/run-cmd.cfg "$PIROOT"/etc/cloud/cloud.cfg.d/99-run-cmd.cfg
 ```
 
-## Install script
-
-This script is run from init2 on the netbooted initramfs to install ubuntu's preinstalled server image onto the disk.
-
-Start with bash header and include all the variables from dhcp that can be used to find things
-```create-file:installer/install.sh#files
-#!/bin/ash
-
-set -e
-
-source /etc/dhcp.env
-```
-
-Write the image to disk then mount the partitions
-```append-file:installer/install.sh#files
-echo RUNNING INSTALL
-
-image=ubuntu-18.04.4-preinstalled-server-armhf+raspi3.img.xz
-tftp -g -r "$image" $router
-
-zcat $image | dd of=/dev/mmcblk0 bs=1M
-
-partprobe
-
-mkdir -p /mnt
-mkdir -p boot
-mount /dev/mmcblk0p1 boot
-mount /dev/mmcblk0p2 /mnt
-```
-Clean up and end the installation
-```append-file:installer/install.sh#files
-sync
-
-umount boot /mnt
-
-echo Successful Installation
-```
-
 Copy the install script, and OS images
 ```bash
 pushd "$PIROOT"/tftpboot/
@@ -269,36 +215,6 @@ sudo eject /dev/${DEVICE}
 
 echo Completed!
 ```
-
-## Serial Console
-
-### Serial Device
-Some text says ttyAMA0 would be the serial port on pins 8 and 10 on the pi, however bluetooth on pi3+ used ttyAMA0, and instead serial was moved to ttyS0 unless bluetooth was disabled in boot config `dtoverlay=pi3-disable-bt`.  Ubuntu (20 and 18?) can use serial0 which will pick the right device for you.  
-
-### Kernel Config
-Usually with serial console, two entries exist in the kernel command line for "console".  One for serial console with a baud rate, e.g.: `console=serial0,115200`.  Also the console still should go to the normal display device so another entry is for tty1.
-
-### USB 
-I paid $11 for 3 pack of EVISWIY PL2303TA USB to TTL Serial Cable, seems to work fine.  the serial port shows up as `/dev/ttyUSB0`.
-
-### Client
-
-(Picocom)[https://github.com/npat-efault/picocom] works well.
-
-To collect the terminal current height and width and then run picocom assuming USB to serial port adapter.
-
-```
-tput cols
-tput lines
-sudo picocom -b 115200 /dev/ttyUSB0
-```
-
-Set the terminal height and width with the values collected above
-```
-stty rows 24 cols 80
-```
-
-Exit session with `Ctrl-a Ctrl-x`
 
 ## Notes
 
