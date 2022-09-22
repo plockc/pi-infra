@@ -66,7 +66,7 @@ gateway hostname: gw
 build node: build-node
 domain for internal network: k8s.local
 
-k3os hostnames (`cp` control node, `w` worker node): `pik8s{cp,w}[0-9]+`
+k3os hostnames (`cp` control node, `w` worker node): `{cp,w}[0-9]+`
 
 ## Script Generation
 

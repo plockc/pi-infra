@@ -55,6 +55,41 @@ mount /dev/mmcblk0p1 sdboot
 mount /dev/mmcblk0p2 /mnt
 ```
 
+Stop cloud init configuration
+```append-file:install.sh
+sudo touch /etc/cloud/cloud-init.disabled
+```
+
+if dhclient were being used, then this script would update the hostname based on the DHCP hostname sent if placed in /etc/dhcp/dhclient-exit-hooks.d/hostname, however systemd-networkd uses it's own client.  You can `dhclient -r eth0` to remove lease then `dhclient -d eth0` to test (ctrl-c to exit the foreground process).
+```
+case "$reason" in
+    BOUND | RENEW | REBOOT | REBIND)
+        hostname $new_host_name
+        echo $new_host_name > /etc/hostname
+    ;;
+esac
+```
+
+This script works with systemd-networkd (ubuntu server), can be tested with `systemctl renew eth0` and checked with `systemctl status networkd-dispatcher` and link info with `networkctl status`.
+```append-file:install.sh
+(cat <<EOF
+#!/bin/bash
+if host $ADDR; then
+    new_name=$(host $ADDR | sed 's/.* \(.*\)\.$/\1')
+    echo $new_name > /etc/hostname
+    hostname $new_name
+fi
+EOF
+) | tee /etc/networkd-dispatcher/configured.d/hostname > /dev/null
+```
+
+
+```append-file:install.sh
+if [[ hostname =~ cp[0-9]+ ]]; then
+    wget 192.168.8.1/cp.sh
+fi
+```
+
 Clean up and end the installation
 ```append-file:install.sh
 echo Sync-ing disks

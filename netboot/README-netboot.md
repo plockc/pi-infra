@@ -206,7 +206,8 @@ FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-armh
 pushd /tftpboot
 sudo rsync -rc ~1/{install.sh,config.txt,initramfs.img,firmware/*} .
 sudo rsync -c ~/$FILE .
-# TODO: maybe no?t needed
+sudo cp ~/.ssh/authorized_keys .
+# TODO: maybe not needed
 echo "net.ifnames=0" > cmdline.txt
 popd
 ```
