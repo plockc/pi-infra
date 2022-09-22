@@ -33,25 +33,25 @@ source /etc/dhcp.env
 Pull the image from tftp, the router address comes from dhcp.env
 ```append-file:install.sh
 echo Download OS Image
-tftp -g -r "$IMAGE" $router
+wget ${router}/$IMAGE
 ```
 
 Write the image to disk then mount the partitions
 ```append-file:install.sh
 
 echo Writing image to System SD Card
-zcat $image | dd of=/dev/mmcblk0 bs=1M
+xzcat $IMAGE | pv | dd of=/dev/mmcblk0 bs=1M
 ```
 
 Verify the partitions
 ```append-file:install.sh
 echo Detecting partitions
-partprobe
+partprobe /dev/mmcblk0
 
 echo Mounting partitions
 mkdir -p /mnt
-mkdir -p boot
-mount /dev/mmcblk0p1 boot
+mkdir -p sdboot
+mount /dev/mmcblk0p1 sdboot
 mount /dev/mmcblk0p2 /mnt
 ```
 
@@ -61,7 +61,7 @@ echo Sync-ing disks
 sync
 
 echo Unmounting partitions
-umount boot /mnt
+umount sdboot /mnt
 
 echo Successful Installation
 ```

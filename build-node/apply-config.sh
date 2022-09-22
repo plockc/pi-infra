@@ -8,3 +8,4 @@ fi
 sudo cp eth0.yaml /etc/netplan/
 sudo rm -f /etc/netplan/99-cloud-init.yaml
 sudo cp hostname /etc/
+sudo cp darkhttpd /usr/local/bin

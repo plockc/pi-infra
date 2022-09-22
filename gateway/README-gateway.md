@@ -99,14 +99,6 @@ COMMIT
 COMMIT
 ```
 
-## HTTPD Server
-
-Compile the server
-```create-file:darkhttpd.sh
-wget https://raw.githubusercontent.com/emikulic/darkhttpd/master/darkhttpd.c
-gcc --static -O darkhttpd.c -o darkhttpd
-```
-
 Create the systemd service file so it runs on startup and restarts if a failure.
 ```create-file:darkhttpd.service
 [Unit]
@@ -145,6 +137,8 @@ sudo cp darkhttpd.service /etc/systemd/system
 sudo systemctl daemon-reload
 sudo systemctl enable darkhttpd
 sudo systemctl start darkhttpd
+
+sudo cp pv /tftpboot
 ```
 
 ## dnsmasq

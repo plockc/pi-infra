@@ -29,6 +29,8 @@ set -euo pipefail
 . sshkey.sh
 . upgrade.sh
 . packages.sh
+. darkhttpd.sh
+. pv.sh
 . python-packages.sh
 . apply-config.sh
 sudo systemctl reboot
@@ -62,9 +64,25 @@ Then packages.sh will install ubuntu packages and snaps in packages.sh
 # created by README-build-node.md
 set -e
 sudo apt install -y \
-  python3-pip silversearcher-ag make gcc rng-tools jq pv
+  python3-pip silversearcher-ag make gcc rng-tools jq autoconf
 sudo snap install --classic nvim
 sudo snap install --classic go
+```
+
+### HTTPD Server
+
+Compile the server
+```create-file:build-node/darkhttpd.sh
+wget https://raw.githubusercontent.com/emikulic/darkhttpd/master/darkhttpd.c
+gcc --static -O darkhttpd.c -o darkhttpd
+```
+
+### PV - pipe view
+```create-file:build-node/pv.sh
+git clone git clone https://github.com/icetee/pv.git
+cd pv
+./configure
+make pv-static
 ```
 
 Then python packages will be installed in python-packages.sh
@@ -155,4 +173,5 @@ fi
 sudo cp eth0.yaml /etc/netplan/
 sudo rm -f /etc/netplan/99-cloud-init.yaml
 sudo cp hostname /etc/
+sudo cp darkhttpd /usr/local/bin
 ```
