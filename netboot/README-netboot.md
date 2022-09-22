@@ -87,16 +87,17 @@ echo nameserver $dns > /etc/resolv.conf
 echo Networking is configured
 ```
 
-The kernel has a configuration for an executable to run and the default is /sbin/init.
+The kernel has a configuration for an executable to run and the default is /init.
 This is the init script, it does some basic setup for the kernel, then runs another script we'll call init2 and include in the initramfs.  The first script's runtime environment is hampered so we'll call a second script after runtime environment is improved and it can behave like a normal script. 
 
-This is `/sbin/init`:
+This is `/init`:
 ```create-file:init
 #!/bin/sh
 set -euo pipefail
 
 mount -t proc none /proc
 mount -t sysfs none /sys
+echo Starting init...
 echo /sbin/mdev > /proc/sys/kernel/hotplug
 mknod /dev/null c 1 3
 /sbin/mdev -s
@@ -107,8 +108,9 @@ This is `/sbin/init2`, it will bring up the primary interface and start udhcpc o
 ```create-file:init2
 #!/bin/sh
 
+echo Starting init2
 # keep the kernel messages from appearing on screen
-echo 0 > /proc/sys/kernel/printk
+#echo 0 > /proc/sys/kernel/printk
 
 # bring link up after we wait a few seconds (1 is not enough) for it to appear so DHCP client can send packets
 sleep 3
@@ -116,8 +118,10 @@ ip link set dev eth0 up
 
 echo Starting udhcpc
 if udhcpc; then
-    if tftp -g -l /root/install.sh -r install.sh $router 2>/dev/null; then
-        chmod 744 /root/install.sh
+    source /etc/dhcp.env
+    echo Pulling install.sh from $router
+    if tftp -g -l /root/install.sh -r install.sh $router ; then
+        chmod 755 /root/install.sh
         echo Install script retrieved
     else
         echo No install.sh found
@@ -165,10 +169,11 @@ sudo chroot . /sbin/busybox --install
 overwrite the busybox init script in the initramfs directory and copy init2 and the dhcp configuration scripts
 ```append-file:initramfs.sh
 rm sbin/init
-cp ~1/init{,2} sbin/
+chmod 755 ~1/init{,2} ~1/udhcpc-configure-interface.sh
+cp ~1/init2 sbin/
+cp ~1/init .
 mkdir -p usr/share/udhcpc
 cp ~1/udhcpc-configure-interface.sh usr/share/udhcpc/default.script
-sudo chmod 744 sbin/init sbin/init2 usr/share/udhcpc/default.script
 ```
 
 Create the initramfs from the working directory and place in tftpboot dir
@@ -189,6 +194,8 @@ FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-armh
 pushd /tftpboot
 sudo rsync -rc ~1/{install.sh,config.txt,initramfs.img,firmware/*} .
 sudo rsync -c ~/$FILE .
+# TODO: maybe no?t needed
+echo "net.ifnames=0" > cmdline.txt
 popd
 ```
 

@@ -186,7 +186,7 @@ echo 'runcmd: [ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519]' > c
 
 ## Copy Configuration
 
-Copy the configuration files
+Copy the configuration files and update kernel command line to use legacy interface names
 ```r-create-file:apply-config-to-sd-card.sh
 #!/bin/bash
 # created by README-install-ubuntu-on-sd-card.md
@@ -209,6 +209,9 @@ fi
 sudo cp ~1/sd-card-eth0.yaml netplan/
 popd
 
+if [ ! grep ifnames /media/$USER/piboot ]; then
+  sed -i -e 's/$/ net.ifnames=0/' /media/$USER/piboot
+fi
 ```
 
 
