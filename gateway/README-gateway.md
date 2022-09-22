@@ -25,7 +25,8 @@ Running gateway.sh will run a series of scripts:
 set -euo pipefail
 
 . packages.sh
-. apply-config.sh
+. darkhttpd.sh
+. apply-gateway-config.sh
 . dnsmasq.sh
 ```
 
@@ -98,8 +99,34 @@ COMMIT
 COMMIT
 ```
 
+## HTTPD Server
+
+Compile the server
+```create-file:darkhttpd.sh
+wget https://raw.githubusercontent.com/emikulic/darkhttpd/master/darkhttpd.c
+gcc --static -O darkhttpd.c -o darkhttpd
+```
+
+Create the systemd service file so it runs on startup and restarts if a failure.
+```create-file:darkhttpd.service
+[Unit]
+Description=Darkhttpd Web Server for /tftpboot
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/sbin/darkhttpd /tftpboot --addr 192.168.8.1
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## Apply Configuration
+
 Copy the configuration files to mounted ubuntu filesystem, enable forwarding, and have iptables configuration loaded on startup.
-```create-file:apply-config.sh
+```create-file:apply-gateway-config.sh
 #!/bin/bash
 # created by README-gateway.md
 set -euo pipefail
@@ -112,8 +139,13 @@ sudo cp ~1/hostname hostname
 sudo mkdir -p iptables
 sudo cp ~1/rules.v4 iptables/
 popd
-```
 
+sudo cp darkhttpd /sbin/
+sudo cp darkhttpd.service /etc/systemd/system
+sudo systemctl daemon-reload
+sudo systemctl enable darkhttpd
+sudo systemctl start darkhttpd
+```
 
 ## dnsmasq
 

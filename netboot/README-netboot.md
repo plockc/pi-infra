@@ -1,5 +1,17 @@
 # Raspi Specific NetBoot
 
+The raspberry pi 4 needs to be configured for netboot, easist is to install the lite raspberry pi os, run
+
+```
+sudo EDITOR=vim rpi-eeprom-config --edit
+```
+
+ensure the BOOT_ORDER is set to `BOOT_ORDER=0xf241`, save, then reboot.
+
+This script assumes it is running on a configured gateway, see README-gateway.md
+
+## Update Gateway to Netboot
+
 These vars can be edited adding `-a` arg to `rundoc run`
 
 ```env
