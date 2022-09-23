@@ -74,13 +74,19 @@ This script works with systemd-networkd (ubuntu server), can be tested with `sys
 ```append-file:install.sh
 (cat <<EOF
 #!/bin/bash
-if host $ADDR; then
-    new_name=$(host $ADDR | sed 's/.* \(.*\)\.$/\1')
-    echo $new_name > /etc/hostname
-    hostname $new_name
+for addr in $IP_ADDRS; do
+if host $addr > /dev/null; then
+        new_name=$(host $addr 192.168.8.1 | grep " domain name pointer " | sed 's/.* \(.*\)\.$/\1/')
+        if [ "$new_name" != "" ]; then
+                echo $new_name > /etc/hostname
+                hostname $new_name
+                echo "Updated hostname to $new_name"
+        fi
 fi
+done
 EOF
-) | tee /etc/networkd-dispatcher/configured.d/hostname > /dev/null
+) | tee /mnt/etc/networkd-dispatcher/configured.d/hostname > /dev/null
+chmod 755 /mnt/etc/networkd-dispatcher/configured.d/hostname
 ```
 
 

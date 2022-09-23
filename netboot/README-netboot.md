@@ -19,6 +19,7 @@ UBUNTU_VERSION=22.04
 UBUNTU_PATCH_VERSION=1
 ```
 
+Setup netboot for raspberry pi 4 of Ubuntu server (pi 3 memory too small)
 ```create-file:setup-netboot.sh
 #!/bin/bash
 # created by README-netboot.md
@@ -27,6 +28,11 @@ set -euo pipefail
 . firmware.sh
 . initramfs.sh
 . tftp.sh
+```
+
+To set hostnames for Pis, update a file in `/etc/dnsmasq.d` such as `k8s-hosts` with contents like below to set the hostname and IP based on the MAC.
+```
+dhcp-host=dc:a6:32:31:82:a5,cp1,192.168.8.10
 ```
 
 ### Download ubuntu 
