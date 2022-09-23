@@ -19,7 +19,7 @@ Start with bash header and include all the variables from dhcp that can be used 
 ```r-create-file:install.sh
 #!/bin/ash
 
-set -e
+set -euo pipefail
 
 IMAGE=%:IMAGE:%
 
@@ -57,7 +57,7 @@ mount /dev/mmcblk0p2 /mnt
 
 Stop cloud init configuration
 ```append-file:install.sh
-sudo touch /etc/cloud/cloud-init.disabled
+touch /mnt/etc/cloud/cloud-init.disabled
 ```
 
 if dhclient were being used, then this script would update the hostname based on the DHCP hostname sent if placed in /etc/dhcp/dhclient-exit-hooks.d/hostname, however systemd-networkd uses it's own client.  You can `dhclient -r eth0` to remove lease then `dhclient -d eth0` to test (ctrl-c to exit the foreground process).
@@ -71,6 +71,8 @@ esac
 ```
 
 This script works with systemd-networkd (ubuntu server), can be tested with `systemctl renew eth0` and checked with `systemctl status networkd-dispatcher` and link info with `networkctl status`.
+
+Some info: [network-dispatcher](https://gitlab.com/craftyguy/networkd-dispatcher#usage)
 ```append-file:install.sh
 (cat <<EOF
 #!/bin/bash
@@ -89,11 +91,19 @@ EOF
 chmod 755 /mnt/etc/networkd-dispatcher/configured.d/hostname
 ```
 
-
+Add helm (for applications on Kubernetes) CLI
 ```append-file:install.sh
-if [[ hostname =~ cp[0-9]+ ]]; then
-    wget 192.168.8.1/cp.sh
-fi
+chroot /mnt snap install helm --classic
+```
+
+Add kernel modules that are missing (like vxlan needed for k3s)
+```append-file:install.sh
+chroot /mnt apt install linux-modules-extra-raspi
+```
+
+update kernel commandline, use legacy names for network like eth0, and add cgroups, needed for running containers in kubernetes
+```append-file:install.sh
+sed -i -e 's/$/ net.ifnames=0 cgroup_memory=1 cgroup_enable=memory' sdboot/cmdline.txt
 ```
 
 Clean up and end the installation
