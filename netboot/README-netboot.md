@@ -42,7 +42,7 @@ dhcp-host=dc:a6:32:31:82:a5,cp1,192.168.8.10
 # created by README-netboot.md
 set -euo pipefail
 
-FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-armhf+raspi.img.xz
+FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-arm64+raspi.img.xz
 wget --no-clobber http://cdimage.ubuntu.com/releases/%:UBUNTU_VERSION:%/release/$FILE
 ```
 
@@ -207,7 +207,7 @@ Copy the install script, and OS images
 # created by README-netboot.md
 set -euo pipefail
 
-FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-armhf+raspi.img.xz
+FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-arm64+raspi.img.xz
 
 pushd /tftpboot
 sudo rsync -rc ~1/{install.sh,config.txt,initramfs.img,firmware/*} .

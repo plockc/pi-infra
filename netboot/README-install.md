@@ -91,19 +91,14 @@ EOF
 chmod 755 /mnt/etc/networkd-dispatcher/configured.d/hostname
 ```
 
-Add helm (for applications on Kubernetes) CLI
-```append-file:install.sh
-chroot /mnt snap install helm --classic
-```
-
-Add kernel modules that are missing (like vxlan needed for k3s)
-```append-file:install.sh
-chroot /mnt apt install linux-modules-extra-raspi
-```
-
 update kernel commandline, use legacy names for network like eth0, and add cgroups, needed for running containers in kubernetes
 ```append-file:install.sh
 sed -i -e 's/$/ net.ifnames=0 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory' sdboot/cmdline.txt
+```
+
+set up 64 bit for pi 4
+```append-file:install.sh
+sed -i -e '0a[pi4]\nkernel=kernel8.img
 ```
 
 Clean up and end the installation
