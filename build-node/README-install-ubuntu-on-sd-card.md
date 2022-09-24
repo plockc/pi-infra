@@ -181,7 +181,11 @@ echo "ssh_authorized_keys:" | tee -a cloud-init-ssh.cfg 2>/dev/null
 for f in $(ls ~/.ssh/id_*.pub); do
   echo "  - $(cat $f)" | tee -a cloud-init-ssh.cfg 2>/dev/null
 done
-echo 'runcmd: [ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519]' > cloud-init-ssh.cfg
+cat <<EOF > cloud-init-ssh.cfg 
+runcmd:
+  - 'ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519'
+  - "chown ubuntu:ubuntu ~/.ssh/id_ed25519{,.pub}"
+EOF
 ```
 
 ## Copy Configuration

@@ -103,7 +103,7 @@ chroot /mnt apt install linux-modules-extra-raspi
 
 update kernel commandline, use legacy names for network like eth0, and add cgroups, needed for running containers in kubernetes
 ```append-file:install.sh
-sed -i -e 's/$/ net.ifnames=0 cgroup_memory=1 cgroup_enable=memory' sdboot/cmdline.txt
+sed -i -e 's/$/ net.ifnames=0 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory' sdboot/cmdline.txt
 ```
 
 Clean up and end the installation
