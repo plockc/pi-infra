@@ -201,6 +201,26 @@ Create the initramfs from the working directory and place in tftpboot dir
 find . | cpio -H newc -o | gzip > ~1/initramfs.img
 ```
 
+Create post-dhcp-configured script for systemd-networkd (ubuntu server) to be run on the installed system, can be tested with `systemctl renew eth0` and checked with `systemctl status networkd-dispatcher` and link info with `networkctl status`.
+
+Some info: [network-dispatcher](https://gitlab.com/craftyguy/networkd-dispatcher#usage)
+```create-file:networkd-dispatcher-hostname.sh
+#!/bin/bash
+# Created by README-netboot.md
+
+wget $
+for addr in $IP_ADDRS; do
+if host $addr > /dev/null; then
+        new_name=$(host $addr 192.168.8.1 | grep " domain name pointer " | sed 's/.* \(.*\)\.$/\1/')
+        if [ "$new_name" != "" ]; then
+                echo $new_name > /etc/hostname
+                hostname $new_name
+                echo "Updated hostname to $new_name"
+        fi
+fi
+done
+```
+
 This cloud init fragment will copy all the assets to tftp directory for netboot
 
 Copy the install script, and OS images
@@ -216,8 +236,9 @@ pushd /tftpboot
 sudo rsync -rc ~1/{install.sh,config.txt,initramfs.img,firmware/*} .
 sudo rsync -c ~/$FILE ~/$FILE64 .
 sudo cp ~/.ssh/authorized_keys .
+sudo cp ~1/networkd-dispatcher-hostname.sh .
 # TODO: maybe not needed
-echo "net.ifnames=0" > cmdline.txt
+echo "net.ifnames=0" | sudo tee cmdline.txt >/dev/null
 popd
 ```
 

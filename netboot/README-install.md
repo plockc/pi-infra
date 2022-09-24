@@ -10,24 +10,42 @@ This script is run from init2 on the netbooted initramfs.
 # Configuration
 
 ```env
-IMAGE=ubuntu-22.04.1-preinstalled-server-armhf+raspi.img.xz
+UBUNTU_VERSION=22.04.1
 ```
 
 # Load dhcp values
 
-Start with bash header and include all the variables from dhcp that can be used to find things
+Start with bash header, load DHCP configured values, and figure out the OS image
 ```r-create-file:install.sh
 #!/bin/ash
 
 set -euo pipefail
 
-IMAGE=%:IMAGE:%
+if [ ! -e /dev/mmcblk0 ]; then
+	echo Missing SD Card, cannot install
+	exit 1
+fi
 
 echo RUNNING INSTALL
 echo ---------------
 
 echo Loading values determined by dhcp
 source /etc/dhcp.env
+
+if cat /proc/cpuinfo | grep Model | grep -q "Pi 4"; then
+	set -x
+	PLATFORM=arm64
+	set +x
+else
+	set -x
+	PLATFORM=arm64
+	set +x
+fi
+
+set -x
+IMAGE=ubuntu-%:UBUNTU_VERSION:%-preinstalled-server-${PLATFORM}+raspi.img.xz
+set +x
+
 ```
 
 Pull the image from tftp, the router address comes from dhcp.env
@@ -60,7 +78,8 @@ Stop cloud init configuration
 touch /mnt/etc/cloud/cloud-init.disabled
 ```
 
-if dhclient were being used, then this script would update the hostname based on the DHCP hostname sent if placed in /etc/dhcp/dhclient-exit-hooks.d/hostname, however systemd-networkd uses it's own client.  You can `dhclient -r eth0` to remove lease then `dhclient -d eth0` to test (ctrl-c to exit the foreground process).
+if dhclient were being used, then this script could update the hostname based on the DHCP hostname sent if placed in /etc/dhcp/dhclient-exit-hooks.d/hostname, however systemd-networkd uses it's own client.  You can `dhclient -r eth0` to remove lease then `dhclient -d eth0` to test (ctrl-c to exit the foreground process).
+Note: this script is not used, it's just for documentation.
 ```
 case "$reason" in
     BOUND | RENEW | REBOOT | REBIND)
@@ -70,35 +89,25 @@ case "$reason" in
 esac
 ```
 
-This script works with systemd-networkd (ubuntu server), can be tested with `systemctl renew eth0` and checked with `systemctl status networkd-dispatcher` and link info with `networkctl status`.
-
-Some info: [network-dispatcher](https://gitlab.com/craftyguy/networkd-dispatcher#usage)
+Setup post dhcp configured script for setting hostname
 ```append-file:install.sh
-(cat <<EOF
-#!/bin/bash
-for addr in $IP_ADDRS; do
-if host $addr > /dev/null; then
-        new_name=$(host $addr 192.168.8.1 | grep " domain name pointer " | sed 's/.* \(.*\)\.$/\1/')
-        if [ "$new_name" != "" ]; then
-                echo $new_name > /etc/hostname
-                hostname $new_name
-                echo "Updated hostname to $new_name"
-        fi
-fi
-done
-EOF
-) | tee /mnt/etc/networkd-dispatcher/configured.d/hostname > /dev/null
-chmod 755 /mnt/etc/networkd-dispatcher/configured.d/hostname
+mkdir /mnt/etc/networkd-dispatcher/configured.d
+
+(
+  cd /mnt/etc/networkd-dispatcher/configured.d
+  wget -O hostname ${router}/networkd-dispatcher-hostname.sh
+  chmod 755 hostname
+)
+
 ```
 
 update kernel commandline, use legacy names for network like eth0, and add cgroups, needed for running containers in kubernetes
 ```append-file:install.sh
-sed -i -e 's/$/ net.ifnames=0 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory' sdboot/cmdline.txt
-```
-
-set up 64 bit for pi 4
-```append-file:install.sh
-sed -i -e '0a[pi4]\nkernel=kernel8.img
+if ! grep cgroup sdboot/cmdline.txt; then
+	sed -i -e 's/$/ net.ifnames=0 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory/' sdboot/cmdline.txt
+else
+	CGroups already configured
+fi
 ```
 
 Clean up and end the installation
