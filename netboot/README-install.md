@@ -38,7 +38,7 @@ if cat /proc/cpuinfo | grep Model | grep -q "Pi 4"; then
 	set +x
 else
 	set -x
-	PLATFORM=arm64
+	PLATFORM=armhf
 	set +x
 fi
 
@@ -74,13 +74,26 @@ mount /dev/mmcblk0p2 /mnt
 ```
 
 Stop cloud init configuration
+TODO: create separate script so can run outside of cloud init
 ```append-file:install.sh
-touch /mnt/etc/cloud/cloud-init.disabled
+cat <<EOF > /mnt/etc/cloud/cloud.cfg.d/99-configure-system.cfg
+runcmd:
+  - mkdir -p /home/ubuntu/.ssh
+  - 'ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519'
+  - "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_ed25519{,.pub}"
+  - wget -O /home/ubuntu/.ssh/authorized_keys 192.168.8.1/authorized_keys
+  - chown ubuntu:ubuntu /home/ubuntu/.ssh/authorized_keys
+  - chmod 600 /home/ubuntu/.ssh/authorized_keys
+  - apt update
+  - apt install -y linux-modules-extra-raspi jq
+  - apt -y upgrade
+  - touch /etc/cloud/cloud-init.disabled
+EOF
 ```
 
-if dhclient were being used, then this script could update the hostname based on the DHCP hostname sent if placed in /etc/dhcp/dhclient-exit-hooks.d/hostname, however systemd-networkd uses it's own client.  You can `dhclient -r eth0` to remove lease then `dhclient -d eth0` to test (ctrl-c to exit the foreground process).
+if dhclient were being used, then this script could update the hostname based on the DHCP hostname sent if placed in /etc/dhcp/dhclient-exit-hooks.d/hostname, however systemd-networkd uses it's own client.  You can `sudo dhclient -r eth0` to remove lease then `sudo dhclient -d eth0` to test (ctrl-c to exit the foreground process).
 Note: this script is not used, it's just for documentation.
-```
+```append-file:dhclient-hostname.sh
 case "$reason" in
     BOUND | RENEW | REBOOT | REBIND)
         hostname $new_host_name

@@ -184,7 +184,7 @@ done
 cat <<EOF > cloud-init-ssh.cfg 
 runcmd:
   - 'ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519'
-  - "chown ubuntu:ubuntu ~/.ssh/id_ed25519{,.pub}"
+  - "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_ed25519{,.pub}"
 EOF
 ```
 

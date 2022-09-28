@@ -69,7 +69,7 @@ sudo tar -C firmware  --strip-components=2 -zxf "$FIRMWARE_ARCHIVE" firmware-mas
 
 The config.txt is pulled by Pi, the directive "initramfs" specifies the file name for the initramfs ("initramfs.img", also stored on tftp) and it should immediately follow the kernel, the kernel knows how to find it.
 ```append-file:firmware.sh
-echo "initramfs initramfs.img followkernel" | sudo tee -a config.txt >/dev/null
+echo -e "[pi4]\nkernel=kernel8.img\n\ninitramfs initramfs.img followkernel" | sudo tee config.txt >/dev/null
 ```
 
 

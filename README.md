@@ -57,9 +57,9 @@ The cluster depends on physical security.  Later upgrades will focus on encrypte
 All of the networks here are considered pocket (non-routed), the external network is determined by DHCP and outbound traffic will be NAT-ed.
 
 Pi node network: 192.168.8.0/24
-kubernetes service network: 192.168.9.0/24
-kubernetes pod network: 192.168.10.0/24
-kubernetes external service network: 192.168.11.0/24
+kubernetes service network: 192.168.10.0/23
+kubernetes pod network: 192.168.12.0/23
+kubernetes external service network: 192.168.14.0/23
 
 internal gateway & DNS: 192.168.8.1
 gateway hostname: gw
