@@ -78,17 +78,32 @@ TODO: create separate script so can run outside of cloud init
 ```append-file:install.sh
 cat <<EOF > /mnt/etc/cloud/cloud.cfg.d/99-configure-system.cfg
 runcmd:
-  - mkdir -p /home/ubuntu/.ssh
-  - 'ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519'
-  - "chown ubuntu:ubuntu /home/ubuntu/.ssh/id_ed25519{,.pub}"
-  - wget -O /home/ubuntu/.ssh/authorized_keys 192.168.8.1/authorized_keys
-  - chown ubuntu:ubuntu /home/ubuntu/.ssh/authorized_keys
-  - chmod 600 /home/ubuntu/.ssh/authorized_keys
-  - apt update
-  - apt install -y linux-modules-extra-raspi jq
-  - apt -y upgrade
-  - touch /etc/cloud/cloud-init.disabled
+  - bash /root/configure-os.sh
+  - systemctl reboot
 EOF
+```
+
+This script will do some OS level work prior to a reboot
+```append-file:configure-os.sh
+#!/bin/bash
+# created by README-install.sh
+
+set -euo pipefail
+
+mkdir -p /home/ubuntu/.ssh
+ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519
+chown ubuntu:ubuntu /home/ubuntu/.ssh/id_ed25519{,.pub}
+wget -O /home/ubuntu/.ssh/authorized_keys 192.168.8.1/authorized_keys
+chown ubuntu:ubuntu /home/ubuntu/.ssh/authorized_keys
+chmod 600 /home/ubuntu/.ssh/authorized_keys
+apt update
+apt install -y jq
+if ! modprobe iscsi_tcp; then
+    apt install -y linux-modules-extra-raspi
+fi
+if [ -d /etc/cloud ]; then
+    touch /etc/cloud/cloud-init.disabled
+fi
 ```
 
 if dhclient were being used, then this script could update the hostname based on the DHCP hostname sent if placed in /etc/dhcp/dhclient-exit-hooks.d/hostname, however systemd-networkd uses it's own client.  You can `sudo dhclient -r eth0` to remove lease then `sudo dhclient -d eth0` to test (ctrl-c to exit the foreground process).
@@ -107,6 +122,7 @@ Setup post dhcp configured script for setting hostname
 mkdir /mnt/etc/networkd-dispatcher/configured.d
 
 (
+  set -euo pipefail
   cd /mnt/etc/networkd-dispatcher/configured.d
   wget -O hostname ${router}/networkd-dispatcher-hostname.sh
   chmod 755 hostname
@@ -115,12 +131,20 @@ mkdir /mnt/etc/networkd-dispatcher/configured.d
 ```
 
 update kernel commandline, use legacy names for network like eth0, and add cgroups, needed for running containers in kubernetes
-```append-file:install.sh
-if ! grep cgroup sdboot/cmdline.txt; then
-	sed -i -e 's/$/ net.ifnames=0 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory/' sdboot/cmdline.txt
-else
+```append-file:configure-os.sh
+(
+  set -euo pipefail
+  if [ -f /boot/cmdline.txt ]; then
+    cd /boot
+  elif [ -f /boot/firmware/cmdline.txt ]; then
+    cd /boot/firmware
+  fi
+  if ! grep cgroup cmdline.txt; then
+	sudo sed -i -e 's/$/ net.ifnames=0 cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory/' cmdline.txt
+  else
 	CGroups already configured
-fi
+  fi
+)
 ```
 
 Clean up and end the installation
