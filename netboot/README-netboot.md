@@ -24,7 +24,7 @@ Setup netboot for raspberry pi 4 of Ubuntu server (pi 3 memory too small)
 #!/bin/bash
 # created by README-netboot.md
 set -euo pipefail
-. download-ubuntu.sh
+. download-os.sh
 . firmware.sh
 . initramfs.sh
 . tftp.sh
@@ -37,7 +37,7 @@ dhcp-host=dc:a6:32:31:82:a5,cp1,192.168.8.10
 
 ### Download ubuntu 
 
-```r-create-file:download-ubuntu.sh
+```r-create-file:download-os.sh
 #!/bin/bash
 # created by README-netboot.md
 set -euo pipefail
@@ -46,6 +46,7 @@ FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-armh
 FILE64=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-arm64+raspi.img.xz
 wget --no-clobber http://cdimage.ubuntu.com/releases/%:UBUNTU_VERSION:%/release/$FILE
 wget --no-clobber http://cdimage.ubuntu.com/releases/%:UBUNTU_VERSION:%/release/$FILE64
+wget --no-clobber https://downloads.raspberrypi.org/raspios_lite_arm64/images/raspios_lite_arm64-2022-09-26/2022-09-22-raspios-bullseye-arm64-lite.img.xz
 ```
 
 ### Firmware and Kernel
@@ -237,6 +238,9 @@ sudo rsync -rc ~1/{install.sh,config.txt,initramfs.img,firmware/*} .
 sudo rsync -c ~/$FILE ~/$FILE64 .
 sudo cp ~/.ssh/authorized_keys .
 sudo cp ~1/networkd-dispatcher-hostname.sh .
+sudo cp ~1/k8s/init-kubernetes.sh .
+sudo cp ~1/dhclient-hostname.sh .
+sudo cp ~1/configure-os.sh .
 # TODO: maybe not needed
 echo "net.ifnames=0" | sudo tee cmdline.txt >/dev/null
 popd
@@ -251,3 +255,9 @@ popd
 ## Further Reading
 
 https://www.raspberrypi.org/documentation/configuration/config-txt/README.md
+
+## Chain build other READMEs
+```bash
+rundoc run README-install.md
+(cd k8s; rundoc run README-init-kubernetes.sh)
+```

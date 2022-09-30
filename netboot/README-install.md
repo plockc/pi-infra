@@ -43,7 +43,9 @@ else
 fi
 
 set -x
-IMAGE=ubuntu-%:UBUNTU_VERSION:%-preinstalled-server-${PLATFORM}+raspi.img.xz
+# ubuntu server crashes with longhorn installed and running (maybe iscsid)
+#IMAGE=ubuntu-%:UBUNTU_VERSION:%-preinstalled-server-${PLATFORM}+raspi.img.xz
+IMAGE=2022-09-22-raspios-bullseye-arm64-lite.img.xz
 set +x
 
 ```
