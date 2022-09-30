@@ -104,6 +104,10 @@ fi
 if [ -d /etc/cloud ]; then
     touch /etc/cloud/cloud-init.disabled
 fi
+if [ -f /lib/dhcpcd/dhcpcd-hooks/30-hostname ]; then
+    sudo sed -i -e 's/# hostname_fqdn=server/hostname_fqdn=server/' /lib/dhcpcd/dhcpcd-hooks/30-hostname
+    sudo sed -i -e 's/hostname_default=localhost/hostname_default=raspberrypi/' /lib/dhcpcd/dhcpcd-hooks/30-hostname
+fi
 ```
 
 if dhclient were being used, then this script could update the hostname based on the DHCP hostname sent if placed in /etc/dhcp/dhclient-exit-hooks.d/hostname, however systemd-networkd uses it's own client.  You can `sudo dhclient -r eth0` to remove lease then `sudo dhclient -d eth0` to test (ctrl-c to exit the foreground process).
