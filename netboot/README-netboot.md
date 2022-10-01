@@ -1,12 +1,30 @@
 # Raspi Specific NetBoot
 
-The raspberry pi 4 needs to be configured for netboot, easist is to install the lite raspberry pi os, run
+The raspberry pi 4 needs to be configured for netboot, easist is to install the lite raspberry pi os lite (and keep that card around)
 
+```
+sudo apt update
+sudo apt install -y rpi-eeprom
+sudo rpi-eeprom-update
+```
+
+If there is an updte needed will say UPDATE AVAILABLE.  If so
+
+```
+sudo rpi-eeprom-update -d -a
+sudo systemctl reboot
+```
+
+After eeprom is updated, updte the BOOT_ORDER
 ```
 sudo EDITOR=vim rpi-eeprom-config --edit
 ```
 
-ensure the BOOT_ORDER is set to `BOOT_ORDER=0xf241`, save, then reboot.
+ensure the BOOT_ORDER is set to `BOOT_ORDER=0xf21`, save and exit, then reboot.
+
+I'm not sure if you have to reboot intto the PI (in other words, not sure exactly when eeprom is updated, immediately or only on boot)
+
+---
 
 This script assumes it is running on a configured gateway, see README-gateway.md
 
@@ -202,24 +220,9 @@ Create the initramfs from the working directory and place in tftpboot dir
 find . | cpio -H newc -o | gzip > ~1/initramfs.img
 ```
 
-Create post-dhcp-configured script for systemd-networkd (ubuntu server) to be run on the installed system, can be tested with `systemctl renew eth0` and checked with `systemctl status networkd-dispatcher` and link info with `networkctl status`.
-
-Some info: [network-dispatcher](https://gitlab.com/craftyguy/networkd-dispatcher#usage)
-```create-file:networkd-dispatcher-hostname.sh
-#!/bin/bash
-# Created by README-netboot.md
-
-wget $
-for addr in $IP_ADDRS; do
-if host $addr > /dev/null; then
-        new_name=$(host $addr 192.168.8.1 | grep " domain name pointer " | sed 's/.* \(.*\)\.$/\1/')
-        if [ "$new_name" != "" ]; then
-                echo $new_name > /etc/hostname
-                hostname $new_name
-                echo "Updated hostname to $new_name"
-        fi
-fi
-done
+Finish the initramfs.sh
+```append-file:initramfs.sh
+popd
 ```
 
 This cloud init fragment will copy all the assets to tftp directory for netboot
@@ -230,19 +233,16 @@ Copy the install script, and OS images
 # created by README-netboot.md
 set -euo pipefail
 
-FILE=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-armhf+raspi.img.xz
-FILE64=ubuntu-%:UBUNTU_VERSION:%.%:UBUNTU_PATCH_VERSION:%-preinstalled-server-arm64+raspi.img.xz
-
 pushd /tftpboot
 sudo rsync -rc ~1/{install.sh,config.txt,initramfs.img,firmware/*} .
-sudo rsync -c ~/$FILE ~/$FILE64 .
+sudo rsync -c ~/2022-09-22-raspios-bullseye-*-lite.img.xz .
 sudo cp ~/.ssh/authorized_keys .
-sudo cp ~1/networkd-dispatcher-hostname.sh .
+cat ~/.ssh/id_ed25519.pub | sudo tee -a authorized_keys > /dev/null
 sudo cp ~1/k8s/init-kubernetes.sh .
 sudo cp ~1/dhclient-hostname.sh .
 sudo cp ~1/configure-os.sh .
 # TODO: maybe not needed
-echo "net.ifnames=0" | sudo tee cmdline.txt >/dev/null
+#echo "net.ifnames=0" | sudo tee cmdline.txt >/dev/null
 popd
 ```
 
@@ -259,5 +259,5 @@ https://www.raspberrypi.org/documentation/configuration/config-txt/README.md
 ## Chain build other READMEs
 ```bash
 rundoc run README-install.md
-(cd k8s; rundoc run README-init-kubernetes.sh)
+(cd k8s && rundoc run README-init-kubernetes.md)
 ```
