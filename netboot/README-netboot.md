@@ -244,6 +244,7 @@ sudo cp ~1/dhclient-hostname.sh .
 sudo cp ~1/configure-os.sh .
 # TODO: maybe not needed
 #echo "net.ifnames=0" | sudo tee cmdline.txt >/dev/null
+echo ubuntu:$(openssl passwd -6 ubuntu) | sudo tee -a userconf.txt > /dev/null
 popd
 ```
 

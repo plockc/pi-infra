@@ -16,6 +16,10 @@ Each README has snippets of scripts and files that a special utility `rundoc` ca
   - USB to TTL cable for serial console
   - Extra monitor is useful, including portable like 5” 800x480 portal display
 
+## Documentation
+
+https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#raspberry-pi-4-boot-flow
+
 ## Executing this script
 
 ```

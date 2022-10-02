@@ -79,38 +79,51 @@ nameserver 192.168.8.1
 EOF
 ```
 
+Setup default user config
+```append-file:install.sh
+wget -O sdboot/userconf.txt 192.168.8.1/userconf.txt
+```
+
 Create a script to configure the freshly installed raspian OS on the SD card
 ```create-file:configure-os.sh
 #!/bin/bash
 
 set -eou pipefail
-echo create proc
-mount -t proc proc /proc
 echo Sync time so can run apt
 /usr/lib/systemd/systemd-timesyncd &
 sleep 5
 kill %1
-umount /proc
+```
+
+Setup keyboard and locale and timezone
+```append-file:configure-os.sh
+sed -i -e '/XKBDLAYOUT/s/.*/XKBDLAYOUT="us"/' /etc/default/keyboard
+sed -i -e '/XKBDMODEL/s/.*/XKBDMODEL="pc105"/' /etc/default/keyboard
+echo "en_US.UTF-8" > /etc/default/locale
+ln -fs /usr/share/zoneinfo/US/Pacific /etc/localtime
 ```
 
 Update package lists and install jq
 ```append-file:configure-os.sh
 echo updating apt package lists
 apt update
-echo installing jq
-apt install -y jq
+echo installing packages
+apt install -y jq vim
 ```
 
-Setup ssh for user
+Setup ssh for user, note that the image has a "pi" home directory but no pi  user.
+The startup one shot systemd server userconf will setup the default user (and leverage the pi
+directory)  according to the userconf.txt that we set up.  The default user / group id is 1000.
 ```append-file:configure-os.sh
 echo enabled ssh
-systemctl enable sshd
+systemctl enable ssh
 
 echo Setup ssh keys
-mkdir -p /home/ubuntu/.ssh
-ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519
-wget -O /home/ubuntu/.ssh/authorized_keys 192.168.8.1/authorized_keys
-chmod 600 /home/ubuntu/.ssh/authorized_keys
+mkdir -p /home/pi/.ssh
+ssh-keygen -t ed25519 -N "" -f /home/pi/.ssh/id_ed25519
+wget -O /home/pi/.ssh/authorized_keys 192.168.8.1/authorized_keys
+chmod 600 /home/pi/.ssh/authorized_keys
+chown 1000:1000 -R /home/pi
 ```
 
 Tweak the dhcpcd script to recognize that we have a default hostname and to accept the server configuration for the hostname
@@ -124,7 +137,7 @@ update kernel commandline, use legacy names for network like eth0, and add cgrou
 ```append-file:install.sh
 (
   set -euo pipefail
-  echo Updaing kernel command line for cgroups
+  echo Updating kernel command line for cgroups
   cd /sdboot
   if ! grep cgroup cmdline.txt; then
 	sed -i -e 's/$/ cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory/' cmdline.txt
