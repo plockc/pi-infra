@@ -96,6 +96,7 @@ apt install -y jq
 
 Setup ssh for user
 ```append-file:configure-os.sh
+systemctl enable sshd
 mkdir -p /home/ubuntu/.ssh
 ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519
 wget -O /home/ubuntu/.ssh/authorized_keys 192.168.8.1/authorized_keys
