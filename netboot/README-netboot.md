@@ -169,6 +169,7 @@ if udhcpc; then
     echo Failed installation, dropping to ash shell
 fi
 /bin/ash
+reboot -f
 ```
 
 ### create initramfs image

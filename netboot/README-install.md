@@ -55,7 +55,6 @@ wget ${router}/$IMAGE
 
 Write the image to disk then mount the partitions
 ```append-file:install.sh
-
 echo Writing image to System SD Card
 xzcat $IMAGE | pv | dd of=/dev/mmcblk0 bs=1M
 ```
@@ -74,6 +73,7 @@ mount /dev/mmcblk0p2 /mnt
 
 Setup nameserver
 ```append-file:install.sh
+echo Use gw 191.168.8.1 as the nameserver
 cat <<EOF > /mnt/etc/resolve.conf
 nameserver 192.168.8.1
 EOF
@@ -84,19 +84,29 @@ Create a script to configure the freshly installed raspian OS on the SD card
 #!/bin/bash
 
 set -eou pipefail
+echo create proc
 mount -t proc proc /proc
+echo Sync time so can run apt
 /usr/lib/systemd/systemd-timesyncd &
+sleep 5
+kill %1
+umount /proc
 ```
 
 Update package lists and install jq
 ```append-file:configure-os.sh
+echo updating apt package lists
 apt update
+echo installing jq
 apt install -y jq
 ```
 
 Setup ssh for user
 ```append-file:configure-os.sh
+echo enabled ssh
 systemctl enable sshd
+
+echo Setup ssh keys
 mkdir -p /home/ubuntu/.ssh
 ssh-keygen -t ed25519 -N "" -f /home/ubuntu/.ssh/id_ed25519
 wget -O /home/ubuntu/.ssh/authorized_keys 192.168.8.1/authorized_keys
@@ -105,22 +115,25 @@ chmod 600 /home/ubuntu/.ssh/authorized_keys
 
 Tweak the dhcpcd script to recognize that we have a default hostname and to accept the server configuration for the hostname
 ```append-file:configure-os.sh
-sudo sed -i -e 's/# hostname_fqdn=server/hostname_fqdn=server/' /lib/dhcpcd/dhcpcd-hooks/30-hostname
-sudo sed -i -e 's/hostname_default=localhost/hostname_default=raspberrypi/' /lib/dhcpcd/dhcpcd-hooks/30-hostname
+echo Setting up hostname assigned from dhcp
+sed -i -e 's/# hostname_fqdn=server/hostname_fqdn=server/' /lib/dhcpcd/dhcpcd-hooks/30-hostname
+sed -i -e 's/hostname_default=localhost/hostname_default=raspberrypi/' /lib/dhcpcd/dhcpcd-hooks/30-hostname
 ```
 
 update kernel commandline, use legacy names for network like eth0, and add cgroups, needed for running containers in kubernetes
 ```append-file:install.sh
 (
   set -euo pipefail
+  echo Updaing kernel command line for cgroups
   cd /sdboot
   if ! grep cgroup cmdline.txt; then
-	sudo sed -i -e 's/$/ cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory/' cmdline.txt
+	sed -i -e 's/$/ cgroup_enable=cpuset cgroup_memory=1 cgroup_enable=memory/' cmdline.txt
   else
 	CGroups already configured
   fi
+  echo Updaing kernel command line for legacy interface names
   if ! grep net.ifnames cmdline.txt; then
-	sudo sed -i -e 's/$/ net.ifnames=0/' cmdline.txt
+	sed -i -e 's/$/ net.ifnames=0/' cmdline.txt
   else
 	CGroups already configured
   fi
@@ -129,7 +142,11 @@ update kernel commandline, use legacy names for network like eth0, and add cgrou
 
 Run the configure script in a chroot for the freshly installed raspian OS on the SD card
 ```append-file:install.sh
+echo Pulling configure-os script
 wget -O /mnt/root/configure-os.sh 192.168.8.1/configure-os.sh
+chmod 755 /mnt/root/configure-os.sh
+
+echo Running configure-os script
 chroot /mnt /root/configure-os.sh
 ```
 
