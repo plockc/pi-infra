@@ -239,7 +239,7 @@ sudo rsync -rc ~1/{install.sh,config.txt,initramfs.img,firmware/*} .
 sudo rsync -c ~/2022-09-22-raspios-bullseye-*-lite.img.xz .
 sudo cp ~/.ssh/authorized_keys .
 cat ~/.ssh/id_ed25519.pub | sudo tee -a authorized_keys > /dev/null
-sudo cp ~1/k8s/init-kubernetes.sh .
+sudo cp ~1/k8s/init-kubernetes.sh ~1/k8s/kubernetes-prep.sh .
 sudo cp ~1/dhclient-hostname.sh .
 sudo cp ~1/configure-os.sh .
 # TODO: maybe not needed
@@ -261,5 +261,5 @@ https://www.raspberrypi.org/documentation/configuration/config-txt/README.md
 ## Chain build other READMEs
 ```bash
 rundoc run README-install.md
-(cd k8s && rundoc run README-init-kubernetes.md)
+(cd k8s && rundoc run README-init-kubernetes.md && rundoc run README-kubernetes-prep.md)
 ```

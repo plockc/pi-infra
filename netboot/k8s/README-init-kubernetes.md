@@ -3,19 +3,13 @@
 
 set -euo pipefail
 
-ARCADE_VERSION=0.8.45
-HELM_VERSION=3.10.0
 export KUBECONFIG=~/.kube/config
 
 # init cluster
 # metallb does not currently support arm64
 # https://github.com/bitnami/charts/issues/7305
-curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=servicelb" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--disable=servicelb --cluster-init  --etcd-arg=experimental-apply-warning-duration=300" sh -
 
-# install arcade
-curl -sLS https://get.arkade.dev | sudo sh
-
-ark install helm
 #ark install kubectl
 
 # setup kubeconfig
@@ -23,8 +17,8 @@ mkdir -p ~/.kube
 sudo k3s kubectl config view --raw > "$KUBECONFIG"
 chmod 600 "$KUBECONFIG"
 echo "export KUBECONFIG=~/.kube/config" >> ~/.profile
+source ~/.profile
 
-# needed to find where the linux modules package is located
 sudo apt install -y nfs-common open-iscsi util-linux jq
 
 sudo modprobe iscsi_tcp
