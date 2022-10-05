@@ -12,6 +12,7 @@ fi
 
 ark get helm
 ark get nerdctl
+ark get k9s
 
 sudo apt install -y nfs-common open-iscsi util-linux jq
 

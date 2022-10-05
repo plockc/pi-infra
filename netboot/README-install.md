@@ -133,6 +133,10 @@ sed -i -e 's/# hostname_fqdn=server/hostname_fqdn=server/' /lib/dhcpcd/dhcpcd-ho
 sed -i -e 's/hostname_default=localhost/hostname_default=raspberrypi/' /lib/dhcpcd/dhcpcd-hooks/30-hostname
 ```
 
+Grab some scripts for setting up k8s
+```append-file:configure-os.sh
+```
+
 update kernel commandline, use legacy names for network like eth0, and add cgroups, needed for running containers in kubernetes
 ```append-file:install.sh
 (
