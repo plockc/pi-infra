@@ -1,0 +1,14 @@
+# created by README-install-ubuntu-on-sd-card.md
+network:
+    version: 2
+    #renderer: networkd
+    wifis:
+        wlan0:
+            # allow OS to start (while still building boot sequeuence)
+            optional: true
+            # do not release IP address
+            critical: true
+            dhcp4: true
+            access-points:
+                "":
+                    password: ""

@@ -1,6 +1,7 @@
+# created by README-build-node.md
 network:
     version: 2
-    renderer: networkd
+    #renderer: networkd
     wifis:
         wlan0:
             # allow OS to start (while still building boot sequeuence)
@@ -9,5 +10,5 @@ network:
             critical: true
             dhcp4: true
             access-points:
-                "CONFIGURE_SSID":
-                    password: "CONFIGURE_PASSWORD"
+                "":
+                    password: ""
