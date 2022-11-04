@@ -3,7 +3,7 @@ network:
     version: 2
     renderer: networkd
     ethernets:
-        eth0:
+        eth1:
             optional: false
             # pick up DNS entries
             dhcp4: true

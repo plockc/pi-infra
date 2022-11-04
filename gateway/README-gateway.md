@@ -4,7 +4,7 @@ This sets up the gateway (with NAT) for a firewalled pocket network using dnsmas
 
 Scripts and files generated from this rundoc need to be *copied and run on the gateway*, though can be generated elsewhere, such as on the build node.
 
-Set up interfaces.  `eth1` is connected to external network, while the pocket network will be on USB on `eth0`, raspberry pi 4 would have much better network speeds than earlier versions over USB (~500Mbit for USB 3.0).
+Set up interfaces. `eth1` is connected to external network with USB Ethernet device, while the pocket network will be on primary interface on `eth0`, which may require moving the primary cable.  note raspberry pi 4 would have much better network speeds than earlier versions over USB.
 
 The upstream is lower throughtput on a pi4 due to USB limits, though if your upstream (internet) connection is 500Mbit/s or less, this will not matter.  The faster LAN connection can also help serving cached assets.
 
@@ -41,22 +41,6 @@ Example:
 DHCP_CIDR=192.168.3.0/24 GW_HOSTNAME=router rundoc run --inherit-env -t init README-gateway.md
 ```
 
-This section will calculate some additional environment and rerun this rundoc
-
-```bash#init
-set -euo pipefail
-
-DHCP_CIDR=${DHCP_CIDR:-192.168.8.0/21}
-RANGE_PERCENT_DHCP=${RANGE_PERCENT_DHCP:-75}
-numIPs=$(prips ${DHCP_CIDR} | wc -l)
-startOff=$(($numIPs*(100-${RANGE_PERCENT_DHCP})/100))
-export GW_ADDR=$(prips $DHCP_CIDR | sed -n "2p")
-export DHCP_START=$(prips ${DHCP_CIDR} | sed -n "${startOff}p")
-export DHCP_END=$(prips ${DHCP_CIDR} | sed -n "$((numIPs-1))p")
-
-bash -c 'rundoc run --inherit-env -t go -N init README-gateway.md'
-```
-
 Running gateway.sh will run a series of scripts:
 
 ```create-file:gateway.sh#go
@@ -67,6 +51,11 @@ set -euo pipefail
 . packages.sh
 . apply-gateway-config.sh
 . dnsmasq.sh
+
+echo =============================================================================
+echo Swap cables so upstream is on USB, and downstream is connected directly to Pi
+echo And Then `sudo systemctl reboot`
+echo =============================================================================
 ```
 
 ## Network Interfaces
@@ -81,7 +70,7 @@ network:
         eth0:
             optional: true
             dhcp4: false
-            addresses: [%:GW_ADDR:%/24]
+            addresses: [%:GW_ADDR:%/%:DHCP_CIDR_SIZE:%]
             # no gateway, we don't want this host to route over the pocket
             nameservers:
                     search: [%:DOMAIN:%]
@@ -96,7 +85,7 @@ network:
     version: 2
     renderer: networkd
     ethernets:
-        eth0:
+        eth1:
             optional: false
             # pick up DNS entries
             dhcp4: true
@@ -130,7 +119,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | sudo debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | sudo debconf-set-selections
-sudo apt install -y rng-tools iptables-persistent netfilter-persistent net-tools prips
+sudo apt install -y rng-tools iptables-persistent netfilter-persistent net-tools prips dnsmasq
 ```
 
 ## IP Forwarding
@@ -228,11 +217,29 @@ sudo cp ~1/dnsmasq-hosts hosts.dnsmasq
 sudo cp ~1/dnsmasq-resolv.conf resolv.dnsmasq.conf
 popd
 
-sudo apt install -y dnsmasq
 # will stop hostname resolution
 sudo systemctl restart systemd-resolved
 # will restore hostname resolution
 sudo systemctl restart dnsmasq
-#sudo rm /etc/resolve.conf
+# fix local host name resolution
 echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf > /dev/null
+```
+
+This section will calculate some additional environment and Re-run this rundoc with computed variables if user did not specify the 'init' tag
+
+```bash#init
+set -euo pipefail
+
+export DHCP_CIDR_SIZE=$(cut -f 2 -d / <<<"${DHCP_CIDR}")
+echo We have a /${DHCP_CIDR_SIZE} network
+numIPs=$(prips ${DHCP_CIDR} | wc -l)
+echo With $numIPs IPs
+startOff=$(($numIPs*(100-${RANGE_PERCENT_DHCP})/100))
+export GW_ADDR=$(prips $DHCP_CIDR | sed -n "2p")
+echo Gateway is $GW_ADDR
+export DHCP_START=$(prips ${DHCP_CIDR} | sed -n "${startOff}p")
+export DHCP_END=$(prips ${DHCP_CIDR} | sed -n "$((numIPs-1))p")
+echo DHCP range is $DHCP_START - $DHCP_END
+
+bash -c 'rundoc run --inherit-env -t go -N init README-gateway.md'
 ```

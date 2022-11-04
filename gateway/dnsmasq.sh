@@ -10,10 +10,9 @@ sudo cp ~1/dnsmasq-hosts hosts.dnsmasq
 sudo cp ~1/dnsmasq-resolv.conf resolv.dnsmasq.conf
 popd
 
-sudo apt install -y dnsmasq
 # will stop hostname resolution
 sudo systemctl restart systemd-resolved
 # will restore hostname resolution
 sudo systemctl restart dnsmasq
-#sudo rm /etc/resolve.conf
+# fix local host name resolution
 echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf > /dev/null
