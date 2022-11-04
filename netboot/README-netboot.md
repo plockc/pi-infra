@@ -28,7 +28,7 @@ I'm not sure if you have to reboot intto the PI (in other words, not sure exactl
 
 This script assumes it is running on a configured gateway, see README-gateway.md
 
-## Update Gateway to Netboot
+## Upgrade Gateway to Netboot
 
 These vars can be edited adding `-a` arg to `rundoc run`
 
@@ -43,6 +43,7 @@ Setup netboot for raspberry pi 4 of Ubuntu server (pi 3 memory too small)
 # created by README-netboot.md
 set -euo pipefail
 . download-os.sh
+. darkhttpd.sh
 . firmware.sh
 . initramfs.sh
 . tftp.sh
@@ -91,6 +92,33 @@ The config.txt is pulled by Pi, the directive "initramfs" specifies the file nam
 echo -e "[pi4]\nkernel=kernel8.img\n\ninitramfs initramfs.img followkernel" | sudo tee config.txt >/dev/null
 ```
 
+## TFTP
+
+### DarkHttpd
+
+Create the systemd service file so it runs on startup and restarts if a failure.
+```r-create-file:darkhttpd.service
+[Unit]
+Description=Darkhttpd Web Server for /tftpboot
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/sbin/darkhttpd /tftpboot --addr ${GW_ADDR}
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Configure dnsmasq for tftp
+
+```create-file:dnsmasq-tftp-conf
+enable-tftp
+tftp-root=/tftpboot
+pxe-service=0,"Raspberry Pi Boot   "
+```
 
 ## Installer
 
@@ -226,13 +254,21 @@ Finish the initramfs.sh
 popd
 ```
 
-This cloud init fragment will copy all the assets to tftp directory for netboot
+This is tftp.sh, it will copy all the assets to tftp directory for netboot, configure dnsmasq for network
 
 Copy the install script, and OS images
 ```r-create-file:tftp.sh
 #!/bin/bash
 # created by README-netboot.md
 set -euo pipefail
+
+sudo cp darkhttpd /sbin/
+sudo cp darkhttpd.service /etc/systemd/system
+sudo systemctl daemon-reload
+sudo systemctl enable darkhttpd
+sudo systemctl start darkhttpd
+
+sudo cp pv /tftpboot
 
 pushd /tftpboot
 sudo rsync -rc ~1/{install.sh,config.txt,initramfs.img,firmware/*} .
@@ -246,6 +282,9 @@ sudo cp ~1/configure-os.sh .
 #echo "net.ifnames=0" | sudo tee cmdline.txt >/dev/null
 echo ubuntu:$(openssl passwd -6 ubuntu) | sudo tee -a userconf.txt > /dev/null
 popd
+
+sudo cp dnsmasq-tftp-conf /etc/dnsmasq.d/tftpd.conf
+sudo systemctl restart dnsmasq
 ```
 
 ## Troubleshooting
