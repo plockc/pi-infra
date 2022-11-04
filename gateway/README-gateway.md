@@ -72,6 +72,7 @@ network:
             dhcp4: false
             addresses: [%:GW_ADDR:%/%:DHCP_CIDR_SIZE:%]
             # no gateway, we don't want this host to route over the pocket
+            link-local: [ipv4]
             nameservers:
                     search: [%:DOMAIN:%]
                     addresses: [%:GW_ADDR:%, 1.1.1.1]
