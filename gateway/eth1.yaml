@@ -1,0 +1,12 @@
+# created by README-gateway.md
+network:
+    version: 2
+    renderer: networkd
+    ethernets:
+        eth0:
+            optional: false
+            # pick up DNS entries
+            dhcp4: true
+            # do not release IP address on shutdown
+            critical: true
+            link-local: [ipv4]

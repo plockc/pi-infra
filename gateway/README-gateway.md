@@ -45,11 +45,13 @@ DHCP_CIDR=192.168.3.0/24 GW_HOSTNAME=router rundoc run --inherit-env -t init REA
 This section will calculate some additional environment and rerun this rundoc
 
 ```bash#init
+set -euo pipefail
+
 numIPs=$(prips ${DHCP_CIDR} | wc -l)
 startOff=$(($numIPs*(100-${RANGE_PERCENT_DHCP})/100))
 export GW_ADDR=$(prips $DHCP_CIDR | sed -n "2p")
-export DHCP_START_ADDR=$(prips ${DHCP_CIDR} | sed -n "${startOff}p")
-export DHCP_END_ADDR=$(prips ${DHCP_CIDR} | sed -n "$((numIps-1))p")
+export DHCP_START=$(prips ${DHCP_CIDR} | sed -n "${startOff}p")
+export DHCP_END=$(prips ${DHCP_CIDR} | sed -n "$((numIPs-1))p")
 rundoc run --inherit-env --must-not-have-tags init README-gateway.md
 ```
 
@@ -77,11 +79,11 @@ network:
         eth0:
             optional: true
             dhcp4: false
-            addresses: [${GW_ADDR}/24]
+            addresses: [%:GW_ADDR:%/24]
             # no gateway, we don't want this host to route over the pocket
             nameservers:
-                    search: [${DOMAIN}]
-                    addresses: [${GW_ADDR}, 1.1.1.1]
+                    search: [%:DOMAIN:%]
+                    addresses: [%:GW_ADDR:%, 1.1.1.1]
 ```
 
 For external network on USB
@@ -154,12 +156,12 @@ COMMIT
 ## Apply Configuration
 
 Copy the configuration files to mounted ubuntu filesystem, enable forwarding, and have iptables configuration loaded on startup.
-```create-file:apply-gateway-config.sh
+```r-create-file:apply-gateway-config.sh
 #!/bin/bash
 # created by README-gateway.md
 set -euo pipefail
 
-sudo hostname gw
+sudo hostname %:GW_HOSTNAME:%
 echo "net.ipv4.ip_forward = 1" | sudo tee /etc/sysctl.d/99-enabled-fowarding.conf > /dev/null
 pushd /etc
 sudo cp ~1/eth0.yaml ~1/eth1.yaml netplan/
@@ -179,8 +181,8 @@ cache-size=1000
 no-dhcp-interface=eth1
 no-dhcp-interface=wlan0
 # static route
-dhcp-option=121,0.0.0.0/0,${GW_ADDR}
-dhcp-range=${DHCP_START_ADDR},${DHCP_END_ADDR},20m
+dhcp-option=121,0.0.0.0/0,%:GW_ADDR:%
+dhcp-range=%:DHCP_START:%,%:DHCP_END:%,20m
 log-dhcp
 # do not forward requests for non-routed IPs
 bogus-priv
@@ -193,11 +195,11 @@ resolv-file=/etc/resolv.dnsmasq.conf
 addn-hosts=/etc/hosts.dnsmasq
 
 # for netboot and tftp
-domain=${DOMAIN}
+domain=%:DOMAIN:%
 ```
 
 ```r-create-file:dnsmasq-hosts
-${GW_ADDR} gw
+%:GW_ADDR:% %:GW_HOSTNAME:%
 ```
 
 ```create-file:dnsmasq-resolv.conf
