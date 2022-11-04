@@ -64,7 +64,7 @@ Then packages.sh will install ubuntu packages and snaps in packages.sh
 # created by README-build-node.md
 set -e
 sudo apt install -y \
-  python3-pip silversearcher-ag make gcc rng-tools jq autoconf
+  python3-pip silversearcher-ag make gcc rng-tools jq autoconf prips
 sudo snap install --classic nvim
 sudo snap install --classic go
 ```
