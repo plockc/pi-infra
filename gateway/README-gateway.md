@@ -65,7 +65,6 @@ Ethernet for internal network.
 # created by README-gateway.md
 network:
     version: 2
-    renderer: networkd
     ethernets:
         eth0:
             optional: true
@@ -84,7 +83,6 @@ For external network on USB
 # created by README-gateway.md
 network:
     version: 2
-    renderer: networkd
     ethernets:
         eth1:
             optional: false
