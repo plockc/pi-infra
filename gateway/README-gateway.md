@@ -20,7 +20,7 @@ bash gateway.sh
 
 Add envionment variables to change networks and hostname, etc. and add the init tag to rundoc to allow for calculations.  The defaults are below:
 
-```env
+```env#go
 DHCP_CIDR=192.168.8.0/21
 GW_HOSTNAME=gw
 DOMAIN=lan
@@ -29,8 +29,7 @@ RANGE_PERCENT_DHCP=75
 
 These are calculated from environment inputs
 
-```env
-GW_CIDR_MASK=21
+```env#init#go
 GW_ADDR=192.168.8.1
 DHCP_START=192.168.10.0
 DHCP_END=192.168.15.254
@@ -47,17 +46,20 @@ This section will calculate some additional environment and rerun this rundoc
 ```bash#init
 set -euo pipefail
 
+DHCP_CIDR=${DHCP_CIDR:-192.168.8.0/21}
+RANGE_PERCENT_DHCP=${RANGE_PERCENT_DHCP:-75}
 numIPs=$(prips ${DHCP_CIDR} | wc -l)
 startOff=$(($numIPs*(100-${RANGE_PERCENT_DHCP})/100))
 export GW_ADDR=$(prips $DHCP_CIDR | sed -n "2p")
 export DHCP_START=$(prips ${DHCP_CIDR} | sed -n "${startOff}p")
 export DHCP_END=$(prips ${DHCP_CIDR} | sed -n "$((numIPs-1))p")
-rundoc run --inherit-env --must-not-have-tags init README-gateway.md
+
+bash -c 'rundoc run --inherit-env -t go -N init README-gateway.md'
 ```
 
 Running gateway.sh will run a series of scripts:
 
-```create-file:gateway.sh
+```create-file:gateway.sh#go
 #!/bin/bash
 # created by README-gateway.md
 set -euo pipefail
@@ -70,7 +72,7 @@ set -euo pipefail
 ## Network Interfaces
 
 Ethernet for internal network.
-```r-create-file:eth0.yaml
+```r-create-file:eth0.yaml#go
 # created by README-gateway.md
 network:
     version: 2
@@ -88,7 +90,7 @@ network:
 
 For external network on USB
 
-```create-file:eth1.yaml
+```create-file:eth1.yaml#go
 # created by README-gateway.md
 network:
     version: 2
@@ -108,19 +110,19 @@ network:
 
 Set the hostname
 
-```create-file:hostname
+```create-file:hostname#go
 gw
 ```
 
 Turn off systemd DNS stub so dnsmasq can listen 
-```create-file:disable-stub-listener.conf
+```create-file:disable-stub-listener.conf#go
 [Resolve]
 DNSStubListener=no
 ```
 
 ## Install Packages
 
-```create-file:packages.sh
+```create-file:packages.sh#go
 #!/bin/bash
 # created by README-gateway.md
 set -euo pipefail
@@ -136,7 +138,7 @@ sudo apt install -y rng-tools iptables-persistent netfilter-persistent net-tools
 This is not firewalling, it's just forwarding packets northbound with NAT currently.  Do not use this machine as an internet gateway, have a hardened machine upstream (dd-wrt / openwrt / ISP provided router)
 
 NAT the forwarded packets that go to external networks
-```create-file:rules.v4
+```create-file:rules.v4#go
 *filter
 :INPUT ACCEPT [0:0]
 :FORWARD ACCEPT [0:0]
@@ -156,7 +158,7 @@ COMMIT
 ## Apply Configuration
 
 Copy the configuration files to mounted ubuntu filesystem, enable forwarding, and have iptables configuration loaded on startup.
-```r-create-file:apply-gateway-config.sh
+```r-create-file:apply-gateway-config.sh#go
 #!/bin/bash
 # created by README-gateway.md
 set -euo pipefail
@@ -175,7 +177,7 @@ popd
 
 DNS and DHCP will be configured on eth1 for the pocket network, and provide a DNS server on eth0 and wlan0 to optionally provide DNS for the external network.
 
-```r-create-file:dnsmasq-pocket.conf
+```r-create-file:dnsmasq-pocket.conf#go
 # default is 150
 cache-size=1000
 no-dhcp-interface=eth1
@@ -198,11 +200,11 @@ addn-hosts=/etc/hosts.dnsmasq
 domain=%:DOMAIN:%
 ```
 
-```r-create-file:dnsmasq-hosts
+```r-create-file:dnsmasq-hosts#go
 %:GW_ADDR:% %:GW_HOSTNAME:%
 ```
 
-```create-file:dnsmasq-resolv.conf
+```create-file:dnsmasq-resolv.conf#go
 nameserver 1.1.1.1
 options edns0
 ```
@@ -213,7 +215,7 @@ Restart systemd-resolved to read in the disable configuration for the Stub liste
 
 Restart dnsmasq to re-attempt binding.
 
-```create-file:dnsmasq.sh
+```create-file:dnsmasq.sh#go
 #!/bin/bash
 # created by README-gateway.md
 set -euo pipefail
