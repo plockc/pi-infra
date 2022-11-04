@@ -222,6 +222,8 @@ sudo systemctl restart systemd-resolved
 # will restore hostname resolution
 sudo systemctl restart dnsmasq
 # fix local host name resolution
+# first remove the symlink to systemd/resolve/stub-resolv.conf
+sudo rm /etc/resolv.conf
 echo "nameserver 127.0.0.1" | sudo tee /etc/resolv.conf > /dev/null
 ```
 
