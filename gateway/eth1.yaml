@@ -9,4 +9,4 @@ network:
             dhcp4: true
             # do not release IP address on shutdown
             critical: true
-            link-local: [ipv4]
+            link-local: []

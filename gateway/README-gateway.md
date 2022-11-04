@@ -72,7 +72,7 @@ network:
             dhcp4: false
             addresses: [%:GW_ADDR:%/%:DHCP_CIDR_SIZE:%]
             # no gateway, we don't want this host to route over the pocket
-            link-local: [ipv4]
+            link-local: []
             nameservers:
                     search: [%:DOMAIN:%]
                     addresses: [%:GW_ADDR:%, 1.1.1.1]
@@ -92,7 +92,7 @@ network:
             dhcp4: true
             # do not release IP address on shutdown
             critical: true
-            link-local: [ipv4]
+            link-local: []
 ```
 
 
