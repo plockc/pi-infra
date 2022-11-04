@@ -4,7 +4,7 @@ This sets up the gateway (with NAT) for a firewalled pocket network using dnsmas
 
 Scripts and files generated from this rundoc need to be *copied and run on the gateway*, though can be generated elsewhere, such as on the build node.
 
-Set up interfaces.  `eth1` is connected to external network, while the pocket network will be on USB on `eth0`, raspberry pi 4 would have much better network speeds than earlier versions over USB (~300Mbit for USB 3.0).
+Set up interfaces.  `eth1` is connected to external network, while the pocket network will be on USB on `eth0`, raspberry pi 4 would have much better network speeds than earlier versions over USB (~500Mbit for USB 3.0).
 
 The upstream is lower throughtput on a pi4 due to USB limits, though if your upstream (internet) connection is 500Mbit/s or less, this will not matter.  The faster LAN connection can also help serving cached assets.
 
@@ -61,7 +61,6 @@ Running gateway.sh will run a series of scripts:
 set -euo pipefail
 
 . packages.sh
-. darkhttpd.sh
 . apply-gateway-config.sh
 . dnsmasq.sh
 ```
@@ -151,21 +150,6 @@ COMMIT
 COMMIT
 ```
 
-Create the systemd service file so it runs on startup and restarts if a failure.
-```r-create-file:darkhttpd.service
-[Unit]
-Description=Darkhttpd Web Server for /tftpboot
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/sbin/darkhttpd /tftpboot --addr ${GW_ADDR}
-Restart=always
-RestartSec=30
-
-[Install]
-WantedBy=multi-user.target
-```
 
 ## Apply Configuration
 
@@ -183,14 +167,6 @@ sudo cp ~1/hostname hostname
 sudo mkdir -p iptables
 sudo cp ~1/rules.v4 iptables/
 popd
-
-sudo cp darkhttpd /sbin/
-sudo cp darkhttpd.service /etc/systemd/system
-sudo systemctl daemon-reload
-sudo systemctl enable darkhttpd
-sudo systemctl start darkhttpd
-
-sudo cp pv /tftpboot
 ```
 
 ## dnsmasq
@@ -218,9 +194,6 @@ addn-hosts=/etc/hosts.dnsmasq
 
 # for netboot and tftp
 domain=${DOMAIN}
-enable-tftp
-tftp-root=/tftpboot
-pxe-service=0,"Raspberry Pi Boot   "
 ```
 
 ```r-create-file:dnsmasq-hosts
