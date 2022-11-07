@@ -1,5 +1,7 @@
 # pi-infra
 
+WARNING: this is pre-alpha work, I use it, but every time I use it I tweak something and I don't do e2e testing when I make changes.  Also, there are some leftovers at the top directory level.  Consider this a collection of ideas on how to make things work and will probably need little adjustments to actually work.  It's also confusing the environment/context the code runs in, sorry about that.
+
 The most important files in this repo are the READMEs that document the scripts and processes to build a very opinionated home infrastructure based on raspberry pis, with aspirations to include netboot and a kubernetes cluster.
 
 Each README has snippets of scripts and files that a special utility `rundoc` can extract from the README that documents the script.
